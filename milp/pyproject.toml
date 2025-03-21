@@ -1,0 +1,14 @@
+[project]
+name = "milp"
+version = "0.1.0"
+description = "Speech about mixed integer linear programming"
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = "LICENSE"
+requires-python = ">=3.13"
+dependencies = [
+    "highspy>=1.10.0",
+    "jupyterlab>=4.3.6",
+    "pandas>=2.2.3",
+    "pyomo[optional]>=6.9.1",
+]
