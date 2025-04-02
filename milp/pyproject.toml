@@ -11,6 +11,7 @@ dependencies = [
     "highspy>=1.10.0",
     "jupyterlab>=4.3.6",
     "matplotlib>=3.10.1",
+    "nbconvert>=7.16.6",
     "pandas>=2.2.3",
     "pyomo[optional]>=6.9.1",
     "sympy>=1.13.3",
