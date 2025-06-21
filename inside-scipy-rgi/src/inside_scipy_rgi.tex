@@ -9,10 +9,14 @@
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usetikzlibrary{matrix}
+\usetikzlibrary{positioning}
 
 \title{Inside SciPy}
 \subtitle{Optimizing Scientific Python}
-\date{2025-07-xx}
+\date{2025-06-26}
 \author{Kai Striega}
 \institute{Cartesian Software \& SciPy}
 
@@ -37,7 +41,7 @@
     showspaces=false,
     showstringspaces=false,
     showtabs=false,
-    tabsize=2
+    tabsize=4
 }
 
 \lstset{style=mystyle}
@@ -155,7 +159,7 @@
             \hline
             Scenario & Time (s) & Relative Speedup \\
             \hline
-            Raw Python & $36.8$ & $1.0$ \\
+            Raw Python & 36.8 & 1.0 \\
             \hline
         \end{tabular}
         \end{center}
@@ -233,7 +237,7 @@
             \begin{enumerate}
                 \item Algorithmic Complexity
                 \item More optimal datastructures (np.array vs lists/tuples)
-                \item micro optimisations
+                \item Micro optimisations
             \end{enumerate}
             \item Pure Python $\implies$ computational overhead
             \item Could remove overhead by extending with a low level language
@@ -273,7 +277,7 @@
             Scenario & Time (s) & Relative Speedup \\
             \hline
             Raw Python & 36.8 & 1.0 \\
-            interp2d & $11.7$ & $3.17$ \\
+            interp2d & 11.7 & 3.17 \\
             Naive Cython & 46.4 & 0.79 \\
             \hline
         \end{tabular}
@@ -307,16 +311,6 @@
         Open the Naive Cython Annotations file
     \end{frame}
 
-    \begin{frame}{Use memory views}
-        \begin{itemize}
-            \item Everything in Python is an object
-            \item Every Python object contains a pointer to the heap
-            \item A list of numbers is a list of pointers to numbers
-            \item \ldots which is very slow
-            \item memory views directly store a block of numbers
-        \end{itemize}
-    \end{frame}
-
     \begin{frame}{Add static typing}
         \begin{itemize}
             \item Cython supports static type annotations
@@ -325,7 +319,6 @@
         \end{itemize}
     \end{frame}
 
-
     \begin{frame}{Remove Python specific functions}
         \begin{itemize}
             \item zip
@@ -333,6 +326,16 @@
             \item itertools.product
             \item np.where
             \item np.searchsorted
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Use memory views}
+        \begin{itemize}
+            \item Everything in Python is an object
+            \item Every Python object contains a pointer to the heap
+            \item A list of numbers is a list of pointers to numbers
+            \item \ldots which is \textbf{very} slow
+            \item Memory views directly store a block of contiguous numbers
         \end{itemize}
     \end{frame}
 
@@ -359,7 +362,7 @@
         \begin{itemize}
             \item Compiler directives are instructions that affect the behaviour of the Cython code
             \item Can be used to further speed up the behaviour of the code
-            \item Make a trade off between performance and being Pythonic
+            \item Make a trade-off between performance and being Pythonic
         \end{itemize}
         \lstinputlisting[language=Python,label={lst:cython_complier}]{static/code_samples/compiler_directives.py}
     \end{frame}
