@@ -1,0 +1,317 @@
+% Preamble
+\documentclass[12pt, aspectration=1610]{beamer}
+\usetheme{Copenhagen}
+\usecolortheme{beaver}
+
+\setbeamertemplate{navigation symbols}{}
+
+% Packages
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{blkarray}
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+\usepackage{hyperref}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\title{Processes and Threads}
+\author{Kai Striega}
+\date{\today}
+
+% Document
+\begin{document}
+
+    \maketitle
+
+    \begin{frame}{Who am I?}
+        \begin{itemize}
+            \item Self-taught developer
+            \item Work as a Senior Software Engineer at Endgame Analytics
+            \item Volunteer in the Free and Open Source community (mainly NumPy and SciPy)
+            \item Organised the Scientific Python Specialist Track at PyCon Australia
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Before I start}
+        \begin{block}{Here be dragons}<2->
+            This talk introduces advanced topics, quickly.
+            The content is designed to stretch your understanding and to challenge you.
+        \end{block}
+        \begin{block}{Questions}<3->
+            I am happy to take questions during the talk, feel free to ask if something doesn't make sense.
+        \end{block}
+    \end{frame}
+
+    \begin{frame}{Expanding your technical toolbox}
+        \begin{enumerate}
+            \item As a programmer, you’re continually building up your technical toolbox
+            \item This toolbox is the sum total of all the tools that you have available to solve any given problem
+            \item Processes or threads provide another, extremely powerful tool to add to your toolbox
+            \item Helps you understand what happens when a program executes
+            \item ``Process vs Thread'' is also a common interview question
+        \end{enumerate}
+    \end{frame}
+
+    \begin{frame}{Today's Analogy}
+        \begin{itemize}
+            \item Processes and Threads can be difficult to understand without context
+            \item So I'll teach by using an analogy
+            \item This analogy is cooking
+        \end{itemize}
+        \begin{block}{Analogies}<2->
+            Analogies are imperfect.
+            This talk focuses on ``the big picture'' of processes and threads.
+            I have simplified things to be more digestible.
+        \end{block}
+    \end{frame}
+
+    \begin{frame}{A quick admission: I \textbf{desipse} cooking}
+        \begin{itemize}
+            \item The onion always wins
+            \item The recipe says ``5 minutes of prep''
+            \item The photograph lies
+            \item My smoke alarm thinks it's part of the team
+            \item I need to clean up afterward
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Why is cooking relevant?}
+        \begin{itemize}
+            \item So far you've learnt to write simple Python programs
+            \item You've learnt to combine data (ingredients) using code (a recipe)
+            \item a.k.a.\ you've learnt to cook small meals by yourself
+            \item But you need more to cook a meal than just ingredients and a recipe
+        \end{itemize}
+    \end{frame}
+
+
+    \begin{frame}
+        Processes
+    \end{frame}
+
+    \begin{frame}{A Processes is the kitchen}
+        \begin{itemize}
+            \item A process provides \textbf{resources} with which you can cook your meal
+            \begin{itemize}
+                \item Memory to store your variables and instructions
+                \item CPU Time The OS schedules CPU time by processes
+                \item System Resources give access to things like file handlers and network connections
+            \end{itemize}
+        \end{itemize}
+        \begin{block}{Process}<2->
+            An instance of a program in execution, together with its associated resources and execution context.
+        \end{block}
+    \end{frame}
+
+    \begin{frame}{A process}
+        \begin{figure}
+            \includegraphics[width=\textwidth]{process_without_threads}\label{fig:figure}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}{Viewing processes}
+        \begin{itemize}
+            \item On Linux/MacOS it is possible to view processes by using the $ps \text{  } u$ command
+            \item  This gives us a lot of information:
+            \begin{itemize}
+                \item[User] Who owns the processes?
+                \item[PID] What is the process ID?
+                \item[\%CPU] How much CPU is the process using, as a percentage of total available?
+                \item[\%MEM] How much memory is the process using, as a percentage of total available?
+                \item[RSS] resident set size, the non-swapped physical memory that a task has used
+                \item[STAT] process state.\ What state is the process currently in?
+            \end{itemize}
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Creating our own process}
+        \begin{itemize}
+        \item Let's say we have a very simple Python program:
+        \end{itemize}
+
+        \lstinputlisting{code/simple_process.py}
+
+        \begin{itemize}
+            \item We can now launch it and see some things:
+            \begin{itemize}
+                \item $ps \text{  } u \text{  } | \text{  } grep \text{  } python$
+            \end{itemize}
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Processes for parallelism}
+        \begin{itemize}
+            \item So far all your recipies do one thing at a time
+            \item \ldots but computers can do many things at the same time
+            \item This is analogous to having multiple kitchens to cook in
+        \end{itemize}
+
+        \begin{block}{Key Takeaway}<2->
+            A computer can run many processes at the same time.
+        \end{block}
+    \end{frame}
+
+    \begin{frame}{Launching multiple processes}
+        \begin{itemize}
+            \item Naively we can launch Python multiple times by launching multiple terminals
+            \item This works but is a hassle
+            \item Instead we can use the inbuilt ``multiprocessing'' module
+            \item The module allows us to launch a processes from another process
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Creating processes from another process}
+        \lstinputlisting{code/multiple_processes.py}
+    \end{frame}
+
+    \begin{frame}{Check-in quiz}
+        \begin{enumerate}
+            \item What is the output of this program?
+            \item How long does this program take to execute?
+        \end{enumerate}
+    \end{frame}
+
+    \begin{frame}{Summary of Processes}
+        We’ve covered a lot so far.
+        Let’s take a second to revise.
+        We have:
+        \begin{itemize}
+            \item defined processes as the operating system’s representation of a running program
+            \item seen that we can show processes using the ps command
+            \item explained the output of (some) of the ps command’s outputs
+            \item shown how to launch multiple processes, both through the terminal and via Python
+            \item shown that using multiple processes can introduce parallelism, allowing us to run many functions at the same time
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}
+        Threads
+    \end{frame}
+
+    \begin{frame}{Threads}
+        \begin{itemize}
+            \item Processes build the whole kitchen
+            \item \ldots \textbf{every time} we want to do parallelism
+            \item This can be highly inefficient
+            \item What about sharing resources within the kitchen?
+            \item Threads are analogous to multiple cooks in the kitchen all utilising the same resources
+        \end{itemize}
+        \begin{block}{Thread}<2->
+            The smallest sequence of programmed instructions that can be scheduled independently by the operating system
+        \end{block}
+    \end{frame}
+
+    \begin{frame}{Creating threads from a process}
+        \lstinputlisting{code/multiple_threads.py}
+    \end{frame}
+
+    \begin{frame}{Seeing threads from a process}
+        \begin{itemize}
+            \item Let's run the trusty $ps \text{  } u \text{  } | \text{  } grep \text{  } python$ command again
+            \item<2-> What do we notice here?
+            \begin{itemize}
+                \item Only one process appears
+                \item The amount of virtual memory is much higher
+            \end{itemize}
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{What do we notice about threads}
+        \begin{itemize}
+            \item We need to use the $-T$ flag to see threads
+            \item The $PID$ of each thread is the same
+            \item This is because the thread runs \textit{inside} the process
+            \item This is significant, threads share the resources provided by the process
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Processes vs Threads}
+        \begin{itemize}
+            \item We've talked about processes and threads individually
+            \item Made the analogy of a process as the kitchen and threads as the chef in the kitchen
+            \item But I don't think the example really demonstrates the tradeoffs:
+            \begin{itemize}
+                \item Speed
+                \item Memory
+                \item Bugs
+            \end{itemize}
+            \item I'm going to demonstrate the difference between processes and threads in practice
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Digression: Measuring Performance}
+        \begin{itemize}
+            \item Measuring is nuanced, difficult to get right and is a distinct area of study
+            \item My measurements here are very approximate
+            \item This works because the sizes are massive
+            \item \textbf{Don't do this in the real world}
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Threads are much quicker to create}
+        \begin{itemize}
+            \item A process needs to manage its own memory and resources
+            \item $\implies$ the process of spawning (or creating) a process is much slower than spawning a thread
+            \item Let's test this
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Speed benchmark setup}
+        \lstinputlisting{code/timed.py}
+    \end{frame}
+
+    \begin{frame}{Speed benchmark setup}
+        \lstinputlisting{code/time_thread.py}
+    \end{frame}
+
+    \begin{frame}{Speed benchmark setup}
+        \lstinputlisting{code/time_process.py}
+    \end{frame}
+
+    \begin{frame}{Threads use much less memory}
+        \begin{itemize}
+            \item Creating copies of memory requires more memory (\textit{duh!})
+            \item Threads do not create copies of memory while processes do
+            \item Threads therefore use much less memory, but how much?
+            \item Let's find out!
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Speed benchmark setup}
+        \lstinputlisting{code/memory_thread.py}
+    \end{frame}
+
+    \begin{frame}{Speed benchmark setup}
+        \lstinputlisting{code/memory_process.py}
+    \end{frame}
+
+    \begin{frame}{Threads look great! Why would I ever want to use a process?}
+        \begin{itemize}
+            \item If a thread crashes all threads in the process will (usually) also crash
+            \item There are many, very difficult to debug bugs that arise from shared memory
+            \begin{itemize}
+                \item Race Conditions
+                \item Deadlocks
+                \item Livelocks
+                \item Thread Starvation
+                \item Priority Starvation
+                \item Memory consistency errors
+                \item Atomicity violations
+            \end{itemize}
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Conclusion}
+        I hope that you:
+        \begin{itemize}
+            \item enjoyed this session
+            \item learnt something about processes and threads
+            \item remember that you won't be an expert (yet!)
+        \end{itemize}
+    \end{frame}
+\end{document}
