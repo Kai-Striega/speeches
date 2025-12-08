@@ -3,11 +3,11 @@ from time import sleep
 NAMES = ["Kai", "Tessa", "Jess", "Lucy"]
 
 def say_hello(name):
-    sleep(10)
+    sleep(5)
     print(f"Hi {name}!")
 
 def main():
-    with Pool() as pool:
+    with Pool(3) as pool:
         pool.map(say_hello, NAMES)
 
 if __name__ == "__main__":
