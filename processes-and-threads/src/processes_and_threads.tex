@@ -21,7 +21,7 @@
 
 \title{Processes and Threads}
 \author{Kai Striega}
-\date{\today}
+\date{2025-12-13}
 
 % Document
 \begin{document}
@@ -32,8 +32,9 @@
         \begin{itemize}
             \item Self-taught developer
             \item Work as a Senior Software Engineer at Endgame Analytics
-            \item Volunteer in the Free and Open Source community (mainly NumPy and SciPy)
+            \item Volunteer in the Free and Open Source community
             \item Organised the Scientific Python Specialist Track at PyCon Australia
+            \item SheCodes mentor since early 2022
         \end{itemize}
     \end{frame}
 
@@ -63,38 +64,36 @@
             \item So I'll teach by using an analogy
             \item This analogy is cooking
         \end{itemize}
-        \begin{block}{Analogies}<2->
-            Analogies are imperfect.
-            This talk focuses on ``the big picture'' of processes and threads.
-            I have simplified things to be more digestible.
-        \end{block}
-    \end{frame}
-
-    \begin{frame}{A quick admission: I \textbf{desipse} cooking}
-        \begin{itemize}
-            \item The onion always wins
-            \item The recipe says ``5 minutes of prep''
-            \item The photograph lies
-            \item My smoke alarm thinks it's part of the team
-            \item I need to clean up afterward
-        \end{itemize}
     \end{frame}
 
     \begin{frame}{Why is cooking relevant?}
-        \begin{itemize}
-            \item So far you've learnt to write simple Python programs
-            \item You've learnt to combine data (ingredients) using code (a recipe)
-            \item a.k.a.\ you've learnt to cook small meals by yourself
-            \item But you need more to cook a meal than just ingredients and a recipe
-        \end{itemize}
+        \begin{minipage}{0.55\textwidth}
+            \begin{itemize}
+                \item So far you've learnt to write simple Python programs
+                \item You've learnt to combine data (ingredients) using code (a recipe)
+                \item a.k.a.\ you've learnt to cook small meals by yourself
+                \item But you need more to cook a meal than just ingredients and a recipe
+            \end{itemize}
+        \end{minipage}
+        \begin{minipage}{0.4\textwidth}
+            \includegraphics[width=\linewidth]{recipe}
+        \end{minipage}
     \end{frame}
-
 
     \begin{frame}
         Processes
     \end{frame}
 
-    \begin{frame}{A Processes is the kitchen}
+    \begin{frame}{A process is the kitchen}
+        \begin{figure}
+            \includegraphics[width=\textwidth]{kitchen}\label{fig:figure}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}{A Processes }
+        \begin{block}{Process}<2->
+            An instance of a program in execution, together with its associated resources and execution context.
+        \end{block}
         \begin{itemize}
             \item A process provides \textbf{resources} with which you can cook your meal
             \begin{itemize}
@@ -103,16 +102,8 @@
                 \item System Resources give access to things like file handlers and network connections
             \end{itemize}
         \end{itemize}
-        \begin{block}{Process}<2->
-            An instance of a program in execution, together with its associated resources and execution context.
-        \end{block}
     \end{frame}
 
-    \begin{frame}{A process}
-        \begin{figure}
-            \includegraphics[width=\textwidth]{process_without_threads}\label{fig:figure}
-        \end{figure}
-    \end{frame}
 
     \begin{frame}{Viewing processes}
         \begin{itemize}
@@ -150,10 +141,16 @@
             \item \ldots but computers can do many things at the same time
             \item This is analogous to having multiple kitchens to cook in
         \end{itemize}
-
-        \begin{block}{Key Takeaway}<2->
-            A computer can run many processes at the same time.
-        \end{block}
+        \vspace{5mm}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{kitchen}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{kitchen}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{kitchen}
+        \end{minipage}
     \end{frame}
 
     \begin{frame}{Launching multiple processes}
@@ -194,18 +191,23 @@
     \end{frame}
 
     \begin{frame}{Threads}
-        \begin{itemize}
-            \item Processes build the whole kitchen
-            \item \ldots \textbf{every time} we want to do parallelism
-            \item This can be highly inefficient
-            \item What about sharing resources within the kitchen?
-            \item Threads are analogous to multiple cooks in the kitchen all utilising the same resources
-        \end{itemize}
-        \begin{block}{Thread}<2->
-            The smallest sequence of programmed instructions that can be scheduled independently by the operating system
-        \end{block}
+        \begin{minipage}{0.6\textwidth}
+            \begin{itemize}
+                \item Processes build the whole kitchen
+                \item \ldots \textbf{every time} we want to do parallelism
+                \item This can be highly inefficient
+                \item What about sharing resources within the kitchen?
+                \item Threads are analogous to multiple cooks in the kitchen all utilising the same resources
+            \end{itemize}
+        \end{minipage}
+        \begin{minipage}{0.35\textwidth}
+            \includegraphics[width=\linewidth]{chef}
+        \end{minipage}
     \end{frame}
 
+    \begin{frame}{Many Threads}
+        \includegraphics[width=\linewidth]{many_chefs}
+    \end{frame}
     \begin{frame}{Creating threads from a process}
         \lstinputlisting{code/multiple_threads.py}
     \end{frame}
@@ -230,6 +232,37 @@
         \end{itemize}
     \end{frame}
 
+    \begin{frame}{How do threads and processes relate?}
+        \includegraphics[height=\textheight]{kitchen}
+    \end{frame}
+    \begin{frame}{A kitchen must always have a chef}
+        \includegraphics[width=\linewidth]{chef}
+    \end{frame}
+    \begin{frame}{You can have multiple chefs per kitchen}
+        \includegraphics[width=\linewidth]{many_chefs}
+    \end{frame}
+    \begin{frame}{And you can have multiple kitchens}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{kitchen}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{kitchen}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{kitchen}
+        \end{minipage}
+    \end{frame}
+    \begin{frame}{You can even have multiple chefs in multiple kitchens}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{many_chefs}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{many_chefs}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{many_chefs}
+        \end{minipage}
+    \end{frame}
     \begin{frame}{Processes vs Threads}
         \begin{itemize}
             \item We've talked about processes and threads individually
