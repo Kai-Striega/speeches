@@ -31,6 +31,7 @@
     \begin{frame}{Who am I?}
         \begin{itemize}
             \item Self-taught developer
+            \item Started programming with Python in 2009
             \item Work as a Senior Software Engineer at Endgame Analytics
             \item Volunteer in the Free and Open Source community
             \item Organised the Scientific Python Specialist Track at PyCon Australia
@@ -43,7 +44,10 @@
             This talk introduces advanced topics, quickly.
             The content is designed to stretch your understanding and to challenge you.
         \end{block}
-        \begin{block}{Questions}<3->
+        \begin{block}{None of this will be assessed}<3->
+            This talk is purely to introduce you to something different, that I think is important to know.
+        \end{block}
+        \begin{block}{Questions}<4->
             I am happy to take questions during the talk, feel free to ask if something doesn't make sense.
         \end{block}
     \end{frame}
@@ -233,34 +237,53 @@
     \end{frame}
 
     \begin{frame}{How do threads and processes relate?}
-        \includegraphics[height=\textheight]{kitchen}
+        \begin{figure}
+            \includegraphics[height=\textheight]{kitchen}
+        \end{figure}
     \end{frame}
     \begin{frame}{A kitchen must always have a chef}
+        \begin{figure}
         \includegraphics[width=\linewidth]{chef}
+            \end{figure}
     \end{frame}
     \begin{frame}{You can have multiple chefs per kitchen}
+        \begin{figure}
         \includegraphics[width=\linewidth]{many_chefs}
+            \end{figure}
     \end{frame}
     \begin{frame}{And you can have multiple kitchens}
+
         \begin{minipage}{0.3\textwidth}
+            \begin{figure}
             \includegraphics[width=\linewidth]{kitchen}
+                \end{figure}
         \end{minipage}
         \begin{minipage}{0.3\textwidth}
+            \begin{figure}
             \includegraphics[width=\linewidth]{kitchen}
+                \end{figure}
         \end{minipage}
         \begin{minipage}{0.3\textwidth}
+            \begin{figure}
             \includegraphics[width=\linewidth]{kitchen}
+                \end{figure}
         \end{minipage}
     \end{frame}
     \begin{frame}{You can even have multiple chefs in multiple kitchens}
         \begin{minipage}{0.3\textwidth}
+            \begin{figure}
             \includegraphics[width=\linewidth]{many_chefs}
+                \end{figure}
         \end{minipage}
         \begin{minipage}{0.3\textwidth}
+            \begin{figure}
             \includegraphics[width=\linewidth]{many_chefs}
+                \end{figure}
         \end{minipage}
         \begin{minipage}{0.3\textwidth}
+            \begin{figure}
             \includegraphics[width=\linewidth]{many_chefs}
+                \end{figure}
         \end{minipage}
     \end{frame}
     \begin{frame}{Processes vs Threads}
@@ -338,6 +361,42 @@
             \end{itemize}
         \end{itemize}
     \end{frame}
+
+    \begin{frame}{Example: Mars Pathfinder Rover (1997)}
+        \begin{itemize}
+            \item Imagine NASA’s Mars Pathfinder rover in 1997
+            \item Inside its computer, everything is organised like a \textit{very busy kitchen}.
+            \item The Mars Pathfinder rover kept rebooting because a low-priority logging task held a lock a high-priority system task needed, while medium-priority tasks kept interrupting.
+        \end{itemize}
+
+        \begin{minipage}{0.45\textwidth}
+            \begin{figure}
+                \includegraphics[width=\linewidth]{pathfinder}
+            \end{figure}
+        \end{minipage}
+        \begin{minipage}{0.45\textwidth}
+            \begin{figure}
+                \includegraphics[width=\linewidth]{pathfinder2}
+            \end{figure}
+        \end{minipage}
+    \end{frame}
+
+    \begin{frame}{Example: Mars Pathfinder Rover (1997)}
+        \begin{itemize}
+            \item A low-priority chef in the kitchen grabbed the only mixing bowl
+            \item \ldots while a high-priority chef urgently needs it.
+            \item But before the low-priority chef can hand it over, another medium-priority chef keeps interrupting them.
+            \item The head chef is stuck waiting
+            \item and is unable to do their \textit{high priority} task
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Example: Mars Pathfinder Rover (1997)}
+        \begin{figure}
+                \includegraphics[width=\linewidth]{priority_inversion}
+            \end{figure}
+    \end{frame}
+
 
     \begin{frame}{Conclusion}
         I hope that you:
