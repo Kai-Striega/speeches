@@ -21,7 +21,7 @@
 
 \title{Processes and Threads}
 \author{Kai Striega}
-\date{\today}
+\date{2025-12-13}
 
 % Document
 \begin{document}
@@ -31,9 +31,11 @@
     \begin{frame}{Who am I?}
         \begin{itemize}
             \item Self-taught developer
+            \item Started programming with Python in 2009
             \item Work as a Senior Software Engineer at Endgame Analytics
-            \item Volunteer in the Free and Open Source community (mainly NumPy and SciPy)
+            \item Volunteer in the Free and Open Source community
             \item Organised the Scientific Python Specialist Track at PyCon Australia
+            \item SheCodes mentor since early 2022
         \end{itemize}
     \end{frame}
 
@@ -42,7 +44,10 @@
             This talk introduces advanced topics, quickly.
             The content is designed to stretch your understanding and to challenge you.
         \end{block}
-        \begin{block}{Questions}<3->
+        \begin{block}{None of this will be assessed}<3->
+            This talk is purely to introduce you to something different, that I think is important to know.
+        \end{block}
+        \begin{block}{Questions}<4->
             I am happy to take questions during the talk, feel free to ask if something doesn't make sense.
         \end{block}
     \end{frame}
@@ -63,38 +68,36 @@
             \item So I'll teach by using an analogy
             \item This analogy is cooking
         \end{itemize}
-        \begin{block}{Analogies}<2->
-            Analogies are imperfect.
-            This talk focuses on ``the big picture'' of processes and threads.
-            I have simplified things to be more digestible.
-        \end{block}
-    \end{frame}
-
-    \begin{frame}{A quick admission: I \textbf{desipse} cooking}
-        \begin{itemize}
-            \item The onion always wins
-            \item The recipe says ``5 minutes of prep''
-            \item The photograph lies
-            \item My smoke alarm thinks it's part of the team
-            \item I need to clean up afterward
-        \end{itemize}
     \end{frame}
 
     \begin{frame}{Why is cooking relevant?}
-        \begin{itemize}
-            \item So far you've learnt to write simple Python programs
-            \item You've learnt to combine data (ingredients) using code (a recipe)
-            \item a.k.a.\ you've learnt to cook small meals by yourself
-            \item But you need more to cook a meal than just ingredients and a recipe
-        \end{itemize}
+        \begin{minipage}{0.55\textwidth}
+            \begin{itemize}
+                \item So far you've learnt to write simple Python programs
+                \item You've learnt to combine data (ingredients) using code (a recipe)
+                \item a.k.a.\ you've learnt to cook small meals by yourself
+                \item But you need more to cook a meal than just ingredients and a recipe
+            \end{itemize}
+        \end{minipage}
+        \begin{minipage}{0.4\textwidth}
+            \includegraphics[width=\linewidth]{recipe}
+        \end{minipage}
     \end{frame}
-
 
     \begin{frame}
         Processes
     \end{frame}
 
-    \begin{frame}{A Processes is the kitchen}
+    \begin{frame}{A process is the kitchen}
+        \begin{figure}
+            \includegraphics[width=\textwidth]{kitchen}\label{fig:figure}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}{A Processes }
+        \begin{block}{Process}<2->
+            An instance of a program in execution, together with its associated resources and execution context.
+        \end{block}
         \begin{itemize}
             \item A process provides \textbf{resources} with which you can cook your meal
             \begin{itemize}
@@ -103,16 +106,8 @@
                 \item System Resources give access to things like file handlers and network connections
             \end{itemize}
         \end{itemize}
-        \begin{block}{Process}<2->
-            An instance of a program in execution, together with its associated resources and execution context.
-        \end{block}
     \end{frame}
 
-    \begin{frame}{A process}
-        \begin{figure}
-            \includegraphics[width=\textwidth]{process_without_threads}\label{fig:figure}
-        \end{figure}
-    \end{frame}
 
     \begin{frame}{Viewing processes}
         \begin{itemize}
@@ -150,10 +145,16 @@
             \item \ldots but computers can do many things at the same time
             \item This is analogous to having multiple kitchens to cook in
         \end{itemize}
-
-        \begin{block}{Key Takeaway}<2->
-            A computer can run many processes at the same time.
-        \end{block}
+        \vspace{5mm}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{kitchen}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{kitchen}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \includegraphics[width=\linewidth]{kitchen}
+        \end{minipage}
     \end{frame}
 
     \begin{frame}{Launching multiple processes}
@@ -194,18 +195,23 @@
     \end{frame}
 
     \begin{frame}{Threads}
-        \begin{itemize}
-            \item Processes build the whole kitchen
-            \item \ldots \textbf{every time} we want to do parallelism
-            \item This can be highly inefficient
-            \item What about sharing resources within the kitchen?
-            \item Threads are analogous to multiple cooks in the kitchen all utilising the same resources
-        \end{itemize}
-        \begin{block}{Thread}<2->
-            The smallest sequence of programmed instructions that can be scheduled independently by the operating system
-        \end{block}
+        \begin{minipage}{0.6\textwidth}
+            \begin{itemize}
+                \item Processes build the whole kitchen
+                \item \ldots \textbf{every time} we want to do parallelism
+                \item This can be highly inefficient
+                \item What about sharing resources within the kitchen?
+                \item Threads are analogous to multiple cooks in the kitchen all utilising the same resources
+            \end{itemize}
+        \end{minipage}
+        \begin{minipage}{0.35\textwidth}
+            \includegraphics[width=\linewidth]{chef}
+        \end{minipage}
     \end{frame}
 
+    \begin{frame}{Many Threads}
+        \includegraphics[width=\linewidth]{many_chefs}
+    \end{frame}
     \begin{frame}{Creating threads from a process}
         \lstinputlisting{code/multiple_threads.py}
     \end{frame}
@@ -230,6 +236,56 @@
         \end{itemize}
     \end{frame}
 
+    \begin{frame}{How do threads and processes relate?}
+        \begin{figure}
+            \includegraphics[height=\textheight]{kitchen}
+        \end{figure}
+    \end{frame}
+    \begin{frame}{A kitchen must always have a chef}
+        \begin{figure}
+        \includegraphics[width=\linewidth]{chef}
+            \end{figure}
+    \end{frame}
+    \begin{frame}{You can have multiple chefs per kitchen}
+        \begin{figure}
+        \includegraphics[width=\linewidth]{many_chefs}
+            \end{figure}
+    \end{frame}
+    \begin{frame}{And you can have multiple kitchens}
+
+        \begin{minipage}{0.3\textwidth}
+            \begin{figure}
+            \includegraphics[width=\linewidth]{kitchen}
+                \end{figure}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \begin{figure}
+            \includegraphics[width=\linewidth]{kitchen}
+                \end{figure}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \begin{figure}
+            \includegraphics[width=\linewidth]{kitchen}
+                \end{figure}
+        \end{minipage}
+    \end{frame}
+    \begin{frame}{You can even have multiple chefs in multiple kitchens}
+        \begin{minipage}{0.3\textwidth}
+            \begin{figure}
+            \includegraphics[width=\linewidth]{many_chefs}
+                \end{figure}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \begin{figure}
+            \includegraphics[width=\linewidth]{many_chefs}
+                \end{figure}
+        \end{minipage}
+        \begin{minipage}{0.3\textwidth}
+            \begin{figure}
+            \includegraphics[width=\linewidth]{many_chefs}
+                \end{figure}
+        \end{minipage}
+    \end{frame}
     \begin{frame}{Processes vs Threads}
         \begin{itemize}
             \item We've talked about processes and threads individually
@@ -305,6 +361,42 @@
             \end{itemize}
         \end{itemize}
     \end{frame}
+
+    \begin{frame}{Example: Mars Pathfinder Rover (1997)}
+        \begin{itemize}
+            \item Imagine NASA’s Mars Pathfinder rover in 1997
+            \item Inside its computer, everything is organised like a \textit{very busy kitchen}.
+            \item The Mars Pathfinder rover kept rebooting because a low-priority logging task held a lock a high-priority system task needed, while medium-priority tasks kept interrupting.
+        \end{itemize}
+
+        \begin{minipage}{0.45\textwidth}
+            \begin{figure}
+                \includegraphics[width=\linewidth]{pathfinder}
+            \end{figure}
+        \end{minipage}
+        \begin{minipage}{0.45\textwidth}
+            \begin{figure}
+                \includegraphics[width=\linewidth]{pathfinder2}
+            \end{figure}
+        \end{minipage}
+    \end{frame}
+
+    \begin{frame}{Example: Mars Pathfinder Rover (1997)}
+        \begin{itemize}
+            \item A low-priority chef in the kitchen grabbed the only mixing bowl
+            \item \ldots while a high-priority chef urgently needs it.
+            \item But before the low-priority chef can hand it over, another medium-priority chef keeps interrupting them.
+            \item The head chef is stuck waiting
+            \item and is unable to do their \textit{high priority} task
+        \end{itemize}
+    \end{frame}
+
+    \begin{frame}{Example: Mars Pathfinder Rover (1997)}
+        \begin{figure}
+                \includegraphics[width=\linewidth]{priority_inversion}
+            \end{figure}
+    \end{frame}
+
 
     \begin{frame}{Conclusion}
         I hope that you:
