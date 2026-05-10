@@ -6,21 +6,19 @@ options:
   incremental_lists: true
 ---
 
-<!-- jump_to_middle -->
-
 # Why we're here
 
 * I spent years maintaining SciPy, which sits on top of NumPy.
 * In that time I read a *lot* of NumPy code written by very smart people.
 * Most performance problems weren't because people didn't know NumPy.
-They were because people had the **wrong mental model** of what NumPy
+* ... They were because people had the **wrong mental model** of what NumPy
 was doing underneath.
 
 <!-- end_slide -->
 
 # The villain
 
-```python +line_numbers {1|2|3}
+```python +line_numbers {1|2|3|1-3}
 images = load_images()                 # (1000, 512, 512, 3)
 images = images.transpose(0, 3, 1, 2)
 flat = images.reshape(1000, -1)        # ← 3 GB copy
@@ -42,11 +40,11 @@ result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
 
 ...and know exactly what NumPy just did to memory.
 
-* Three ideas. Not tricks. Lenses.
+* Three ideas.
+* Not tricks.
+* Lenses.
 
 <!-- end_slide -->
-
-<!-- jump_to_middle -->
 
 Idea 1
 ===
@@ -100,10 +98,11 @@ sys.settrace(None)
 
 <!-- end_slide -->
 
-# Three million versus one
+# A million versus one
 
-* Python's bytecode interpreter ran more than **a million times** in the first version.
-* **Once** in the second.
+* Python's bytecode interpreter ran:
+    * **> one million times** in the first version.
+    * **Once** in the second.
 * NumPy isn't accelerating Python.
 * It's *relocating the work* somewhere Python never touches.
 
@@ -126,14 +125,17 @@ DOUBLE_square(char **args, npy_intp const *dimensions, ...)
 }
 ```
 
-* *This* is the loop that ran. In C. Once. Over the whole array.
+* *This* is the loop that ran.
+    * In C.
+    * Once.
+    * Over the whole array.
 * This is a **ufunc** — a vectorised C kernel.
 
 <!-- end_slide -->
 
 # When the relocation breaks
 
-```python {1-2|4-5|7-8}
+```python {1-2|4-5|7-8|1-8}
 ints = np.arange(1_000_000, dtype=np.int64)
 objs = np.arange(1_000_000, dtype=object)
 
@@ -146,7 +148,7 @@ objs = np.arange(1_000_000, dtype=object)
 
 * Same shape, same operation, same syntax.
 * For `int64`, NumPy has a C kernel.
-* For `object`, it doesn't — there's no general C function for arbitrary Python objects.
+* For `object`, it doesn't, there's no general C function for arbitrary Python objects.
 
 * The relocation contract requires a kernel.
 * **Object dtype opts you out of every performance property NumPy offers.**
@@ -160,8 +162,6 @@ objs = np.arange(1_000_000, dtype=object)
 * What does an array actually look like?
 
 <!-- end_slide -->
-
-<!-- jump_to_middle -->
 
 Idea 2
 ===
@@ -252,26 +252,41 @@ buffer in memory:    [1] [2] [3] [4] [5] [6]
 
 ```python 
 >>> a = np.zeros((2, 3))
+>>> a.itemsize
+8  # size of each element in bytes
 >>> a.shape
-(2, 3)
+(2, 3)  # number of elements in each dim
 >>> a.strides
-(24, 8)
->>> a.flags['C_CONTIGUOUS']
-True
+(24, 8)  # size of the step taken to traverse that dim
+```
+
+* Strides are in **bytes**
+* `(24, 8)` is "skip a row" then "skip a column" for a `float64` array.
+
+```python 
 >>> b = a.T
 >>> b.shape
 (3, 2)
 >>> b.strides
 (8, 24)
+```
+
+<!-- end_slide -->
+
+# Non-contiguous doesn't mean scrambled
+
+```python
+>>> a.flags['C_CONTIGUOUS']
+True
 >>> b.flags['C_CONTIGUOUS']
 False
 >>> b.flags['F_CONTIGUOUS']
 True
 ```
 
-* Strides are in **bytes** — `(24, 8)` is "skip a row" then "skip a column" for a `float64` array.
 * Transpose breaks C-contiguity but creates F-contiguity.
-* Non-contiguous doesn't mean scrambled.
+* This F-contiguity can often be _faster_ than C-contiguity.
+* Will touch on this later.
 
 <!-- end_slide -->
 
@@ -285,9 +300,7 @@ over the same buffer, without rearranging any bytes.
    - A C-contiguous array can always be reshaped without copying.
    - A non-contiguous array sometimes can — it depends on which axes you touch.
 
-> Heuristic: if you've done a transpose, fancy indexing, or any
-> axis-rearranging operation recently, **assume reshape might copy**.
-> Check `flags` if you care.
+> Heuristic: if you've done a transpose, fancy indexing, or a axis-rearranging operation recently, **assume reshape might copy**. Check `flags` if you care.
 
 <!-- end_slide -->
 
@@ -327,7 +340,7 @@ flat = images.reshape(1000, -1)         # needs contiguous layout
 
 # The villain returns — resolve
 
-```python {1-3|2|3}
+```python {1-3|1|2|3}
 images = load_images()
 images = images.transpose(0, 3, 1, 2).copy()  # explicit copy here
 flat = images.reshape(1000, -1)               # now free
@@ -349,8 +362,6 @@ flat = images.reshape(1000, -1)               # now free
 * But what about operations between *mismatched shapes*?
 
 <!-- end_slide -->
-
-<!-- jump_to_middle -->
 
 Idea 3
 ===
@@ -453,8 +464,6 @@ You now have all three lenses.
 
 <!-- end_slide -->
 
-<!-- jump_to_middle -->
-
 The closing
 ===
 
@@ -518,8 +527,6 @@ a - a.mean(...)                 ▏ broadcasts (N, 1) against (N, M)
 - [Advanced NumPy | SciPy Lecture Notes](https://scipy-lectures.org/advanced/advanced_numpy/)
 
 <!-- end_slide -->
-
-<!-- jump_to_middle -->
 
 # Thank you
 
