@@ -511,10 +511,11 @@ a - a.mean(...)                 ▏ broadcasts (N, 1) against (N, M)
 
 # References
 
-- 
-- 
-- 
-- 
+- [Introduction to Numerical Computing with NumPy | SciPy 2019 Tutorial | Alex Chabot-Leclerc](https://www.youtube.com/watch?v=ZB7BZMhfPgk)
+- [Advanced NumPy | SciPy Japan 2019 Tutorial | Juan Nunuz-Iglesias](https://www.youtube.com/watch?v=cYugp9IN1-Q)
+- [Array Programming with NumPy | Harris et al.](https://arxiv.org/abs/2006.10256)
+- [Internal organization of NumPy arrays](https://numpy.org/doc/stable/dev/internals.html)
+- [Advanced NumPy | SciPy Lecture Notes](https://scipy-lectures.org/advanced/advanced_numpy/)
 
 <!-- end_slide -->
 
