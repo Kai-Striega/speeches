@@ -26,13 +26,21 @@ Kai Striega
 
 <v-clicks>
 
-- I spent years maintaining SciPy, which sits on top of NumPy.
+- I spent years maintaining SciPy, the library built on top of NumPy.
 - In that time I read a *lot* of NumPy code written by very smart people.
-- Most performance problems weren't because people didn't know NumPy.
-- ... They were because people had the **wrong mental model** of what NumPy
-  was doing underneath.
+- The performance problems they hit weren't because they didn't know NumPy.
+- They had the right syntax, the right idioms, the right intuitions.
+- They had the **wrong mental model** of what NumPy was doing underneath.
 
 </v-clicks>
+
+<!--
+TODO before delivery: replace one of these bullets with a real, specific
+moment — the code review, the bug report, the production incident where
+you saw this happen. Audiences calibrate trust on specificity. One named
+example beats four generalisations.
+-->
+
 
 ---
 
@@ -191,7 +199,7 @@ objs = np.arange(1_000_000, dtype=object)
 
 - Same shape, same operation, same syntax.
 - For `int64`, NumPy has a C kernel.
-- For `object`, it doesn't, there's no general C function for arbitrary Python objects.
+- For `object`, it doesn't. There's no general C function for arbitrary Python objects.
 - The relocation contract requires a kernel.
 - **Object dtype opts you out of every performance property NumPy offers.**
 
@@ -255,7 +263,11 @@ typedef struct {
 } PyArrayObject;
 ```
 
-- A small **header** pointing at a flat **buffer**.
+<v-click>
+
+## A small **header** pointing at a flat **buffer**.
+
+</v-click>
 
 ---
 
@@ -296,7 +308,7 @@ buffer in memory:    [1] [2] [3] [4] [5] [6]
 # The picture: transpose
 
 ```
-buffer in memory:    [1] [2] [3] [4] [5] [6]
+buffer in memory:    [1] [2] [3] [4] [5] [6]    (each box = 8 bytes, float64)
                       ^
                       |
           a:    shape=(2, 3)   strides=(24, 8)
@@ -356,8 +368,7 @@ True
 <v-clicks>
 
 - Transpose breaks C-contiguity but creates F-contiguity.
-- This F-contiguity can often be _faster_ than C-contiguity.
-- Will touch on this later.
+- The bytes are still in a regular pattern. The pattern just changed.
 
 </v-clicks>
 
@@ -557,16 +568,14 @@ Remember why copies hurt: bandwidth and cache eviction.
 
 # The trap
 
-<v-clicks>
-
-- Broadcasting prevents *one* specific intermediate.
-- It does **not** prevent intermediates from chained operations.
-
-</v-clicks>
+Broadcasting prevents *one* specific intermediate.
+It does **not** prevent intermediates from chained operations.
 
 ```python
 result = (a - a.mean(axis=1, keepdims=True)) ** 2
 ```
+
+You'll recognise the shape of this. We're warming up for the closing.
 
 What gets allocated:
 
@@ -574,7 +583,7 @@ What gets allocated:
 
 - `a.mean(...)`        → small, shape `(N, 1)`
 - `a - a.mean(...)`    → **full size** intermediate
-- `(...) ** 2`         → **full size** intermediate (or reused buffer)
+- `(...) ** 2`         → **full size** intermediate
 
 </v-clicks>
 
@@ -638,8 +647,10 @@ a - a.mean(...)                 # broadcasts (N, 1) against (N, M)
 
 # The takeaway
 
-1. An ndarray is a header pointing at a buffer.
-2. Operations relocate to C, broadcasting holds a contract, and the cost is wherever copies happen, usually not where you wrote them.
+- An ndarray is a header pointing at a buffer.
+- Operations relocate to C.
+- Broadcasting holds a contract.
+- The cost is wherever copies happen. Usually not where you wrote it.
 
 ## The cost isn't where you think it is!
 
@@ -663,11 +674,11 @@ a - a.mean(...)                 # broadcasts (N, 1) against (N, M)
 
 # References
 
-- [Introduction to Numerical Computing with NumPy | SciPy 2019 Tutorial | Alex Chabot-Leclerc](https://www.youtube.com/watch?v=ZB7BZMhfPgk)
-- [Advanced NumPy | SciPy Japan 2019 Tutorial | Juan Nunez-Iglesias](https://www.youtube.com/watch?v=cYugp9IN1-Q)
-- [Array Programming with NumPy | Harris et al.](https://arxiv.org/abs/2006.10256)
-- [Internal organization of NumPy arrays](https://numpy.org/doc/stable/dev/internals.html)
-- [Advanced NumPy | SciPy Lecture Notes](https://scipy-lectures.org/advanced/advanced_numpy/)
+- [Introduction to Numerical Computing with NumPy | SciPy 2019 | Alex Chabot-Leclerc](https://www.youtube.com/watch?v=ZB7BZMhfPgk). The gentle on-ramp if today went too fast.
+- [Advanced NumPy | SciPy Japan 2019 | Juan Nunez-Iglesias](https://www.youtube.com/watch?v=cYugp9IN1-Q). Goes deeper on strides, views, and the C side.
+- [Array Programming with NumPy | Harris et al.](https://arxiv.org/abs/2006.10256). The canonical paper.
+- [Internal organization of NumPy arrays](https://numpy.org/doc/stable/dev/internals.html). Authoritative on memory layout.
+- [Advanced NumPy | SciPy Lecture Notes](https://scipy-lectures.org/advanced/advanced_numpy/). Strides, ufuncs, and the C API in depth.
 
 ---
 layout: center
