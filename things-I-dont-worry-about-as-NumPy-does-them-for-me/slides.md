@@ -381,6 +381,23 @@ True
 
 ---
 
+# Why copies hurt
+
+A copy isn't slow because the CPU is busy.
+It's slow because the bytes have to *move*.
+
+<v-clicks>
+
+- RAM serves data at ~10 GB/s — so a 3 GB copy is ~300 ms of pure traffic.
+- While that happens, the cache fills with data we won't reuse.
+- The *next* operation pays again to pull its inputs back in.
+
+</v-clicks>
+
+**The currency is bandwidth, not bytes.**
+
+---
+
 # The villain returns — recall
 
 ```python {lines:true}
@@ -524,12 +541,14 @@ ValueError: operands could not be broadcast together
 
 # Why the contract is worth keeping
 
+Remember why copies hurt: bandwidth and cache eviction.
+
 <v-clicks>
 
-- Because broadcasting doesn't materialise, the C kernel can stream through memory in a tight loop.
-- That keeps the **cache** warm and lets NumPy hand off to **SIMD** instructions or **BLAS** routines underneath.
-- You don't ask for any of this.
-- It's the consequence of staying inside the contract.
+- Broadcasting refuses to allocate the tile, so neither cost gets paid.
+- The C kernel streams the original buffers, and the cache stays warm.
+- A warm cache is what lets NumPy hand off to **SIMD** instructions or **BLAS** routines underneath.
+- You don't ask for any of this — it's what staying inside the contract buys you.
 
 </v-clicks>
 
