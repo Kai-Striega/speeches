@@ -3,7 +3,7 @@ theme: default
 title: Things I don't worry about as NumPy does them for me
 info: |
   A mental model for the things NumPy is quietly doing on your behalf.
-  By Kai Striega — PyCon AU 2026.
+  By Kai Striega, PyCon AU 2026.
 author: Kai Striega
 highlighter: shiki
 lineNumbers: false
@@ -96,7 +96,7 @@ data = np.arange(1_000_000, dtype=np.float64)
 
 <v-clicks>
 
-- Yes — NumPy is faster.
+- Yes, NumPy is faster.
 - *But that's not the lesson*.
 
 </v-clicks>
@@ -168,7 +168,7 @@ DOUBLE_square(char **args, npy_intp const *dimensions, ...)
   - In C.
   - Once.
   - Over the whole array.
-- This is a **ufunc** — a vectorised C kernel.
+- This is a **ufunc**, a vectorised C kernel.
 
 </v-clicks>
 
@@ -259,7 +259,7 @@ typedef struct {
 
 ---
 
-# The picture — buffer
+# The picture: buffer
 
 ```
 buffer in memory:    [1] [2] [3] [4] [5] [6]
@@ -274,7 +274,7 @@ buffer in memory:    [1] [2] [3] [4] [5] [6]
 
 ---
 
-# The picture — header
+# The picture: header
 
 ```
 buffer in memory:    [1] [2] [3] [4] [5] [6]
@@ -293,7 +293,7 @@ buffer in memory:    [1] [2] [3] [4] [5] [6]
 
 ---
 
-# The picture — transpose
+# The picture: transpose
 
 ```
 buffer in memory:    [1] [2] [3] [4] [5] [6]
@@ -372,8 +372,8 @@ True
 - "Compatible" means: NumPy can produce the new shape by choosing new strides
   over the same buffer, without rearranging any bytes.
 
-  - A C-contiguous array can always be reshaped without copying.
-  - A non-contiguous array sometimes can — it depends on which axes you touch.
+  - A contiguous array (C or F) can almost always be reshaped without copying.
+  - A non-contiguous array sometimes can. It depends on which axes you touch.
 
 </v-clicks>
 
@@ -388,7 +388,7 @@ It's slow because the bytes have to *move*.
 
 <v-clicks>
 
-- RAM serves data at ~10 GB/s — so a 3 GB copy is ~300 ms of pure traffic.
+- RAM serves data at ~10 GB/s, so a 3 GB copy is ~300 ms of pure traffic.
 - While that happens, the cache fills with data we won't reuse.
 - The *next* operation pays again to pull its inputs back in.
 
@@ -398,7 +398,7 @@ It's slow because the bytes have to *move*.
 
 ---
 
-# The villain returns — recall
+# The villain returns: recall
 
 ```python {lines:true}
 images = load_images()                   # (1000, 512, 512, 3)
@@ -416,14 +416,14 @@ flat = images.reshape(1000, -1)          # ← 3 GB copy
 
 ---
 
-# The villain returns — diagnose
+# The villain returns: diagnose
 
 ```python {1-2|4-6|8-10}
 images = load_images()                  # shape (1000, 512, 512, 3)
                                         # C-contiguous ✓
                                         
 images = images.transpose(0, 3, 1, 2)   # shape (1000, 3, 512, 512)
-                                        # strides reordered — same buffer
+                                        # strides reordered, same buffer
                                         # C-contiguous ✗
                                         
 flat = images.reshape(1000, -1)         # needs contiguous layout
@@ -433,6 +433,7 @@ flat = images.reshape(1000, -1)         # needs contiguous layout
 
 <v-clicks>
 
+- Reshape needs to walk the new shape in a regular stride pattern. The transpose broke that.
 - The cost wasn't on the line that did the work.
 - It was set up three lines earlier.
 
@@ -440,7 +441,7 @@ flat = images.reshape(1000, -1)         # needs contiguous layout
 
 ---
 
-# The villain returns — resolve
+# The villain returns: resolve
 
 ```python {1-3|1|2|3}
 images = load_images()
@@ -487,7 +488,7 @@ layout: section
 
 - Broadcasting is a deal NumPy offers you.
 - You give it two arrays of mismatched shape.
-- It runs the operation **as if the smaller one were the size of the larger** — without ever allocating that larger version.
+- It runs the operation **as if the smaller one were the size of the larger**, without ever allocating that larger version.
 - The only thing that gets allocated is the **result**.
 
 </v-clicks>
@@ -548,7 +549,7 @@ Remember why copies hurt: bandwidth and cache eviction.
 - Broadcasting refuses to allocate the tile, so neither cost gets paid.
 - The C kernel streams the original buffers, and the cache stays warm.
 - A warm cache is what lets NumPy hand off to **SIMD** instructions or **BLAS** routines underneath.
-- You don't ask for any of this — it's what staying inside the contract buys you.
+- You don't ask for any of this. It's what staying inside the contract buys you.
 
 </v-clicks>
 
@@ -584,9 +585,6 @@ What gets allocated:
 
 </v-clicks>
 
-> Most ufuncs take an `out=` parameter that writes into a pre-allocated
-> buffer. Worth knowing exists; we won't go further.
-
 ---
 
 # Bridge
@@ -619,19 +617,19 @@ layout: section
 result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
 ```
 
-``` {1-13|1-3|5-7|9-10|12-13}
-a.mean(axis=1, keepdims=True)   ▏ C kernel (idea 1)
-                                ▏ shape (N, 1) — keepdims preserves
-                                ▏ the column for broadcasting
-                                ▏
-a - a.mean(...)                 ▏ broadcasts (N, 1) against (N, M)
-                                ▏ no tile allocated (idea 3)
-                                ▏ full-size intermediate
-(...) ** 2                      ▏ C kernel, elementwise
-                                ▏ another full-size intermediate
-                                ▏
-.sum(axis=1)                    ▏ C kernel, reduction
-                                ▏ collapses to shape (N,)
+```python {1-13|1-3|5-7|8-9|11-12}
+a.mean(axis=1, keepdims=True)   # C kernel (idea 1)
+                                # shape (N, 1), keepdims preserves
+                                # the column for broadcasting
+                                #
+a - a.mean(...)                 # broadcasts (N, 1) against (N, M)
+                                # no tile allocated (idea 3)
+                                # full-size intermediate
+(...) ** 2                      # C kernel, elementwise
+                                # another full-size intermediate
+                                #
+.sum(axis=1)                    # C kernel, reduction
+                                # collapses to shape (N,)
 ```
 
 ## You could do this without me!
@@ -641,7 +639,7 @@ a - a.mean(...)                 ▏ broadcasts (N, 1) against (N, M)
 # The takeaway
 
 1. An ndarray is a header pointing at a buffer.
-2. Operations relocate to C, broadcasting holds a contract, and the cost is wherever copies happen — usually not where you wrote them.
+2. Operations relocate to C, broadcasting holds a contract, and the cost is wherever copies happen, usually not where you wrote them.
 
 ## The cost isn't where you think it is!
 
