@@ -1,9 +1,8 @@
 present:
-	presenterm --config-file presenterm.config.yaml --validate-overflows --validate-snippets numpy_talk.md
+	npx slidev slides.md
 
 pdf:
-	presenterm --export-pdf --config-file presenterm.config.yaml --validate-overflows --validate-snippets numpy_talk.md
+	npx slidev export slides.md
 
 html:
-	presenterm --export-html --config-file presenterm.config.yaml --validate-overflows --validate-snippets numpy_talk.md
-
+	npx slidev build slides.md
