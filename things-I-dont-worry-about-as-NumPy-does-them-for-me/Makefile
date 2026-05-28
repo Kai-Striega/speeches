@@ -2,7 +2,7 @@ present:
 	npx slidev slides.md
 
 pdf:
-	npx slidev export slides.md
+	npx slidev export --with-clicks slides.md
 
 html:
 	npx slidev build slides.md
