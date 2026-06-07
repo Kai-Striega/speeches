@@ -1,5 +1,6 @@
 ---
 theme: default
+colorSchema: dark
 title: Things I don't worry about as NumPy does them for me
 info: |
   A mental model for the things NumPy is quietly doing on your behalf.
