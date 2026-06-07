@@ -1,0 +1,53 @@
+name: Build NumPy talk PDF
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "things-I-dont-worry-about-as-NumPy-does-them-for-me/**"
+      - ".github/workflows/build-numpy-talk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: things-I-dont-worry-about-as-NumPy-does-them-for-me
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: things-I-dont-worry-about-as-NumPy-does-them-for-me/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for export
+        run: npx playwright install --with-deps chromium
+
+      - name: Build PDF
+        run: make pdf
+
+      - name: Rename PDF
+        run: cp slides-export.pdf things-i-dont-worry-about-as-numpy-does-them-for-me.pdf
+
+      - name: Compute release tag
+        id: meta
+        run: echo "tag=numpy-talk-$(date +'%Y.%m.%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: "NumPy talk: ${{ steps.meta.outputs.tag }}"
+          files: things-I-dont-worry-about-as-NumPy-does-them-for-me/things-i-dont-worry-about-as-numpy-does-them-for-me.pdf
