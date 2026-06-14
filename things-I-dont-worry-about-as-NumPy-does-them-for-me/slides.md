@@ -4,7 +4,6 @@ colorSchema: dark
 title: Things I don't worry about as NumPy does them for me
 info: |
   A mental model for the things NumPy is quietly doing on your behalf.
-  By Kai Striega, PyCon AU 2026.
 author: Kai Striega
 highlighter: shiki
 lineNumbers: false
@@ -47,7 +46,7 @@ example beats four generalisations.
 
 # The villain
 
-```python {1|2|3|1-3}{lines:true}
+```python {1|2|3}{lines:true}
 images = load_images()                 # (1000, 512, 512, 3)
 images = images.transpose(0, 3, 1, 2)
 flat = images.reshape(1000, -1)        # ← 3 GB copy
@@ -73,13 +72,7 @@ result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
 
 ...and know exactly what NumPy just did to memory.
 
-<v-clicks>
-
-- Three ideas.
-- Not tricks.
-- Lenses.
-
-</v-clicks>
+Three ideas, not tricks.
 
 ---
 layout: section
@@ -145,8 +138,8 @@ sys.settrace(None)
 <v-clicks>
 
 - Python's bytecode interpreter ran:
-  - **> one million times** in the first version.
-  - **Once** in the second.
+  - a **million** times in the first version.
+  - **once** in the second.
 - NumPy isn't accelerating Python.
 - It's *relocating the work* somewhere Python never touches.
 
@@ -175,7 +168,6 @@ DOUBLE_square(char **args, npy_intp const *dimensions, ...)
 
 - *This* is the loop that ran.
   - In C.
-  - Once.
   - Over the whole array.
 - This is a **ufunc**, a vectorised C kernel.
 
@@ -185,7 +177,7 @@ DOUBLE_square(char **args, npy_intp const *dimensions, ...)
 
 # When the relocation breaks
 
-```python {1-2|4-5|7-8|1-8}
+```python {1-2|4-5|7-8}
 ints = np.arange(1_000_000, dtype=np.int64)
 objs = np.arange(1_000_000, dtype=object)
 
@@ -275,12 +267,12 @@ typedef struct {
 # The picture: buffer
 
 ```
-buffer in memory:    [1] [2] [3] [4] [5] [6]
+buffer in memory:    [1] [2] [3] [4] [5] [6] (each box = 8 bytes, float64)
 ```
 
 <v-clicks>
 
-- Six contiguous bytes.
+- Six contiguous elements.
 - That's all the data there is.
 
 </v-clicks>
@@ -290,7 +282,7 @@ buffer in memory:    [1] [2] [3] [4] [5] [6]
 # The picture: header
 
 ```
-buffer in memory:    [1] [2] [3] [4] [5] [6]
+buffer in memory:    [1] [2] [3] [4] [5] [6] (each box = 8 bytes, float64)
                       ^
                       |
           a:  shape=(2, 3)   strides=(24, 8)
@@ -309,7 +301,7 @@ buffer in memory:    [1] [2] [3] [4] [5] [6]
 # The picture: transpose
 
 ```
-buffer in memory:    [1] [2] [3] [4] [5] [6]    (each box = 8 bytes, float64)
+buffer in memory:    [1] [2] [3] [4] [5] [6] (each box = 8 bytes, float64)
                       ^
                       |
           a:    shape=(2, 3)   strides=(24, 8)
@@ -328,7 +320,7 @@ buffer in memory:    [1] [2] [3] [4] [5] [6]    (each box = 8 bytes, float64)
 
 # Verifying the picture
 
-```python 
+```python{|1|2-3|4-5|6-7}
 >>> a = np.zeros((2, 3))
 >>> a.itemsize
 8  # size of each element in bytes
@@ -338,14 +330,10 @@ buffer in memory:    [1] [2] [3] [4] [5] [6]    (each box = 8 bytes, float64)
 (24, 8)  # size of the step taken to traverse that dim
 ```
 
-<v-clicks>
-
 - Strides are in **bytes**
 - `(24, 8)` is "skip a row" then "skip a column" for a `float64` array.
 
-</v-clicks>
-
-```python 
+```python{|1|2-3|4-5}
 >>> b = a.T
 >>> b.shape
 (3, 2)
@@ -357,7 +345,7 @@ buffer in memory:    [1] [2] [3] [4] [5] [6]    (each box = 8 bytes, float64)
 
 # Non-contiguous doesn't mean scrambled
 
-```python
+```python{1-2|3-4|5-6}
 >>> a.flags['C_CONTIGUOUS']
 True
 >>> b.flags['C_CONTIGUOUS']
@@ -365,13 +353,6 @@ False
 >>> b.flags['F_CONTIGUOUS']
 True
 ```
-
-<v-clicks>
-
-- Transpose breaks C-contiguity but creates F-contiguity.
-- The bytes are still in a regular pattern. The pattern just changed.
-
-</v-clicks>
 
 ---
 
@@ -387,9 +368,10 @@ True
   - A contiguous array (C or F) can almost always be reshaped without copying.
   - A non-contiguous array sometimes can. It depends on which axes you touch.
 
+> Heuristic: if you've done a transpose, fancy indexing, or a axis-rearranging operation recently, **assume reshape might copy**. Check `flags` if you care.
+
 </v-clicks>
 
-> Heuristic: if you've done a transpose, fancy indexing, or a axis-rearranging operation recently, **assume reshape might copy**. Check `flags` if you care.
 
 ---
 
@@ -404,9 +386,10 @@ It's slow because the bytes have to *move*.
 - While that happens, the cache fills with data we won't reuse.
 - The *next* operation pays again to pull its inputs back in.
 
+**The currency is bandwidth, not bytes.**
+
 </v-clicks>
 
-**The currency is bandwidth, not bytes.**
 
 ---
 
@@ -433,7 +416,7 @@ flat = images.reshape(1000, -1)          # ← 3 GB copy
 ```python {1-2|4-6|8-10}
 images = load_images()                  # shape (1000, 512, 512, 3)
                                         # C-contiguous ✓
-                                        
+
 images = images.transpose(0, 3, 1, 2)   # shape (1000, 3, 512, 512)
                                         # strides reordered, same buffer
                                         # C-contiguous ✗
@@ -534,7 +517,7 @@ What didn't happen:
 2. Each axis pair must be **equal, or one of them must be 1**.
 3. Missing axes are treated as 1.
 
-``` 
+```{1-3|5-7|9-13}
 a:           (1000, 1000)
 b:                 (1000)    ← prepended as (1, 1000)
 result:      (1000, 1000)    ✓
@@ -627,22 +610,27 @@ layout: section
 result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
 ```
 
-```python {1-13|1-3|5-7|8-9|11-12}
+```python {1-3|5-7|9-10|12-13}
 a.mean(axis=1, keepdims=True)   # C kernel (idea 1)
                                 # shape (N, 1), keepdims preserves
                                 # the column for broadcasting
-                                #
+                                 
 a - a.mean(...)                 # broadcasts (N, 1) against (N, M)
                                 # no tile allocated (idea 3)
                                 # full-size intermediate
+
 (...) ** 2                      # C kernel, elementwise
                                 # another full-size intermediate
-                                #
+                                 
 .sum(axis=1)                    # C kernel, reduction
                                 # collapses to shape (N,)
 ```
 
+<v-clicks>
+
 ## You could do this without me!
+
+</v-clicks>
 
 ---
 
