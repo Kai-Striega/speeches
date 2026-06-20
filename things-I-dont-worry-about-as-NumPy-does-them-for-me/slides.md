@@ -612,6 +612,69 @@ a - a.mean(...)                 # broadcasts (N, 1) against (N, M)
 </v-clicks>
 
 ---
+layout: section
+---
+
+# One more thing
+
+## The intermediates we never killed
+
+---
+
+# The cost we accepted
+
+```python
+result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
+```
+
+<v-clicks>
+
+- Broadcasting saved the tile.
+- But each chained step still wrote a **full-size intermediate** to memory.
+- NumPy evaluates one operation at a time. It finishes `a - mean`, stores it, then starts `** 2`.
+- For a big `a`, that's two full arrays written out and read straight back. Pure bandwidth (idea 2).
+
+</v-clicks>
+
+---
+
+# numexpr: same expression, one pass
+
+```python {1|3|5}
+import numexpr as ne
+
+m = a.mean(axis=1, keepdims=True)         # small, shape (N, 1)
+
+result = ne.evaluate('sum((a - m) ** 2, axis=1)')
+```
+
+<v-clicks>
+
+- numexpr compiles the string into one fused loop over the buffers.
+- It walks the data **once**, in cache-sized chunks, across threads.
+- `a - m` and `** 2` never become full arrays. The intermediates are gone.
+
+```python
+%timeit ((a - a.mean(1, keepdims=True)) ** 2).sum(1)  # ~9 ms
+%timeit ne.evaluate('sum((a - m) ** 2, axis=1)')      # ~5 ms
+```
+
+</v-clicks>
+
+---
+
+# The catch
+
+<v-clicks>
+
+- It's not free magic. numexpr supports a **subset** of NumPy: arithmetic, comparisons, a handful of functions and reductions.
+- The expression is a **string**, so you give up the syntax checking and tooling that real code gets.
+- For a single operation there's nothing to fuse, so there's nothing to gain.
+- Reach for it when you have a **chain** of elementwise operations over large arrays. That's exactly where NumPy's intermediates hurt.
+
+</v-clicks>
+
+---
 
 # The takeaway
 
@@ -619,6 +682,7 @@ a - a.mean(...)                 # broadcasts (N, 1) against (N, M)
 - Operations relocate to C.
 - Broadcasting holds a contract.
 - The cost is wherever copies happen. Usually not where you wrote it.
+- When a chain of operations is the cost, a tool like numexpr can fuse it away.
 
 ## The cost isn't where you think it is!
 
@@ -647,6 +711,7 @@ a - a.mean(...)                 # broadcasts (N, 1) against (N, M)
 - [Array Programming with NumPy | Harris et al.](https://arxiv.org/abs/2006.10256). The canonical paper.
 - [Internal organization of NumPy arrays](https://numpy.org/doc/stable/dev/internals.html). Authoritative on memory layout.
 - [Advanced NumPy | SciPy Lecture Notes](https://scipy-lectures.org/advanced/advanced_numpy/). Strides, ufuncs, and the C API in depth.
+- [numexpr documentation](https://numexpr.readthedocs.io/). Fusing chained expressions to skip the intermediates.
 
 ---
 layout: center
