@@ -167,9 +167,8 @@ DOUBLE_square(char **args, npy_intp const *dimensions, ...)
 <v-clicks>
 
 - *This* is the loop that ran.
-  - In C.
-  - Over the whole array.
-- This is a **ufunc**, a vectorised C kernel.
+- In C.
+- Over the whole array.
 
 </v-clicks>
 
@@ -220,25 +219,6 @@ layout: section
 
 ---
 
-# A surprising timing
-
-```python {1|3|4}
-big = np.zeros((10_000, 10_000))    # 800 MB
-
-%timeit big.T                       # ~100 ns
-%timeit big.T.copy()                # ~400 ms
-```
-
-<v-clicks>
-
-- Transposing 800MB in **100 nanoseconds**.
-- The same operation with `.copy()` costs four million times more.
-- What is `.T` actually doing, then?
-
-</v-clicks>
-
----
-
 # What an ndarray actually is
 
 From `numpy/_core/include/numpy/ndarraytypes.h`, slightly trimmed:
@@ -256,11 +236,26 @@ typedef struct {
 } PyArrayObject;
 ```
 
-<v-click>
-
 ## A small **header** pointing at a flat **buffer**.
 
-</v-click>
+---
+
+# A surprising timing
+
+```python {1|3|4}
+big = np.zeros((10_000, 10_000))    # 800 MB
+
+%timeit big.T                       # ~100 ns
+%timeit big.T.copy()                # ~400 ms
+```
+
+<v-clicks>
+
+- Transposing 800MB in **100 nanoseconds**.
+- The same operation with `.copy()` costs four million times more.
+- What is `.T` actually doing, then?
+
+</v-clicks>
 
 ---
 
@@ -401,13 +396,9 @@ images = images.transpose(0, 3, 1, 2)
 flat = images.reshape(1000, -1)          # ← 3 GB copy
 ```
 
-<v-clicks>
-
 - Remember this from the start?
 - I said something here cost 3 gigabytes.
 - Let's read it!
-
-</v-clicks>
 
 ---
 
@@ -436,15 +427,13 @@ flat = images.reshape(1000, -1)         # needs contiguous layout
 
 ---
 
-# The villain returns: resolve
+# The villain returns
 
-```python {1-3|1|2|3}
+```python {1|2|3}
 images = load_images()
 images = images.transpose(0, 3, 1, 2).copy()  # explicit copy here
 flat = images.reshape(1000, -1)               # now free
 ```
-
-(`np.ascontiguousarray(...)` does the same thing.)
 
 <v-clicks>
 
@@ -492,7 +481,7 @@ layout: section
 
 # The contract in code
 
-```python
+```python{1|2|4}
 a = np.zeros((1000, 1000))   # 8 MB
 b = np.arange(1000)          # 8 KB
 
@@ -501,13 +490,9 @@ result = a + b               # 8 MB (just the result)
 
 What didn't happen:
 
-<v-clicks>
-
 - `b` was **not** tiled to (1000, 1000)
 - No 8 MB intermediate was allocated
 - The C kernel iterated over `a`'s shape, reading `b` modularly
-
-</v-clicks>
 
 ---
 
@@ -539,14 +524,10 @@ ValueError: operands could not be broadcast together
 
 Remember why copies hurt: bandwidth and cache eviction.
 
-<v-clicks>
-
 - Broadcasting refuses to allocate the tile, so neither cost gets paid.
 - The C kernel streams the original buffers, and the cache stays warm.
 - A warm cache is what lets NumPy hand off to **SIMD** instructions or **BLAS** routines underneath.
 - You don't ask for any of this. It's what staying inside the contract buys you.
-
-</v-clicks>
 
 ---
 
@@ -600,11 +581,9 @@ layout: section
 
 # The closing
 
-## Reading the promise
-
 ---
 
-# The promise, kept
+# The promise
 
 ```python
 result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
