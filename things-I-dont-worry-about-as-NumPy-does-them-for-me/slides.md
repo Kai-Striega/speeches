@@ -75,7 +75,7 @@ Kai Striega
 ```python {1|2|3}{lines:true}
 images = load_images()                 # (1000, 512, 512, 3)
 images = images.transpose(0, 3, 1, 2)
-flat = images.reshape(1000, -1)        # ← 3 GB copy
+flat = images.reshape(1000, -1)        # ← 6.3 GB copy
 ```
 
 <v-clicks>
@@ -112,14 +112,14 @@ layout: section
 
 # The familiar comparison
 
-```python {1|4|7}
+```python {1|3-4|6-7}
 data = np.arange(1_000_000, dtype=np.float64)
 
 # Pure Python
-%timeit  [x ** 2 for x in data]    # ~400 ms
+%timeit  [x ** 2 for x in data]    # ~72 ms
 
 # NumPy
-%timeit data ** 2                  # ~2 ms
+%timeit data ** 2                  # ~0.25 ms
 ```
 
 <v-clicks>
@@ -148,7 +148,7 @@ python_lines_visited = 0
 sys.settrace(counter)
 result = [x ** 2 for x in data]
 sys.settrace(None)
-# python_lines_visited: 1,018,399 
+# python_lines_visited: 1,000,001
 
 python_lines_visited = 0
 sys.settrace(counter)
@@ -207,10 +207,10 @@ ints = np.arange(1_000_000, dtype=np.int64)
 objs = np.arange(1_000_000, dtype=object)
 
 # INT64_square kernel runs in C
-%timeit ints ** 2     # ~2 ms     
+%timeit ints ** 2     # ~0.28 ms     
 
 # Python's __pow__ called a million times
-%timeit objs ** 2     # ~80 ms    
+%timeit objs ** 2     # ~30 ms    
 ```
 
 <v-clicks>
@@ -271,14 +271,14 @@ typedef struct {
 ```python {1|3|4}
 big = np.zeros((10_000, 10_000))    # 800 MB
 
-%timeit big.T                       # ~100 ns
-%timeit big.T.copy()                # ~400 ms
+%timeit big.T                       # ~60 ns
+%timeit big.T.copy()                # ~550 ms
 ```
 
 <v-clicks>
 
-- Transposing 800MB in **100 nanoseconds**.
-- The same operation with `.copy()` costs four million times more.
+- Transposing 800MB in **60 nanoseconds**.
+- The same operation with `.copy()` costs about nine million times more.
 - What is `.T` actually doing, then?
 
 </v-clicks>
@@ -403,7 +403,7 @@ It's slow because the bytes have to *move*.
 
 <v-clicks>
 
-- RAM serves data at ~10 GB/s, so a 3 GB copy is ~300 ms of pure traffic.
+- RAM serves data at ~20 GB/s, so a 6.3 GB copy is ~300 ms of pure traffic.
 - While that happens, the cache fills with data we won't reuse.
 - The *next* operation pays again to pull its inputs back in.
 
@@ -419,7 +419,7 @@ It's slow because the bytes have to *move*.
 ```python {lines:true}
 images = load_images()                   # (1000, 512, 512, 3)
 images = images.transpose(0, 3, 1, 2)
-flat = images.reshape(1000, -1)          # ← 3 GB copy
+flat = images.reshape(1000, -1)          # 6.3 GB copy
 ```
 
 - Remember this from the start?
@@ -440,7 +440,7 @@ images = images.transpose(0, 3, 1, 2)   # shape (1000, 3, 512, 512)
                                         
 flat = images.reshape(1000, -1)         # needs contiguous layout
                                         # buffer doesn't match → copy
-                                        # 3 GB allocated and moved
+                                        # 6.3 GB allocated and moved
 ```
 
 <v-clicks>
@@ -464,7 +464,7 @@ flat = images.reshape(1000, -1)               # now free
 <v-clicks>
 
 - The fix doesn't make the copy go away.
-- The 3 GB still gets moved.
+- The 6.3 GB still gets moved.
 - What changed: the copy is now on the line that says `copy`, instead of hiding inside `reshape`.
 - **The model doesn't avoid copies. It makes them visible.**
 
@@ -681,7 +681,7 @@ result = ne.evaluate('sum((a - m) ** 2, axis=1)')
 - `a - m` and `** 2` never become full arrays. The intermediates are gone.
 
 ```python
-%timeit ((a - a.mean(1, keepdims=True)) ** 2).sum(1)  # ~9 ms
+%timeit ((a - a.mean(1, keepdims=True)) ** 2).sum(1)  # ~8 ms
 %timeit ne.evaluate('sum((a - m) ** 2, axis=1)')      # ~5 ms
 ```
 
