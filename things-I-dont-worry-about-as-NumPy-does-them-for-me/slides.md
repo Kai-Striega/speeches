@@ -22,25 +22,51 @@ Kai Striega
 
 ---
 
+# This is a talk about NumPy
+
+<v-clicks>
+
+> The fundamental package for scientific computing with Python.
+- NumPy provides performant, powerful N-dimensional arrays and numerical computing tools on those arrays.
+- NumPy is heavily used with more than one billion monthly downloads between PyPI and conda.
+- Some of NumPy's feats:
+    - The [first image of a black hole](https://numpy.org/case-studies/blackhole-image/).
+    - The [detection of gravitational waves](https://numpy.org/case-studies/gw-discov/).
+    - [Protein Structure Prediction](https://www.nature.com/articles/s41586-021-03819-2) (2024 Noble Prize in Chemistry).
+    - Humanity's [first flight on Mars](https://github.com/readme/featured/nasa-ingenuity-helicopter).
+    - Was published in [Nature](https://www.nature.com/articles/s41586-020-2649-2), a journal that almost never publishes software.
+
+</v-clicks>
+
+---
+
+# `whoami`? (and why should you listen to me?)
+
+<v-clicks>
+
+- Hi! I'm Kai Striega.
+- I build and productionise Mathematical Optimisation models at Endgame Analytics.
+- I was a maintainer of SciPy for 7 years.
+    - SciPy implements numerical algorithms using NumPy
+    - Downloaded 385 million times last month.
+- Very active in the Australian Python community.
+    - Local Meetups: PythonWA, MelbPy, SydPy.
+    - PyCon AU's Scientific Python Track.
+
+</v-clicks>
+
+---
+
 # Why we're here
 
 <v-clicks>
 
-- I spent years maintaining SciPy, the library built on top of NumPy.
-- In that time I read a *lot* of NumPy code written by very smart people.
+- In the years I spent maintaining SciPy, I read a *lot* of NumPy code written by very smart people.
 - The performance problems they hit weren't because they didn't know NumPy.
 - They had the right syntax, the right idioms, the right intuitions.
 - They had the **wrong mental model** of what NumPy was doing underneath.
 
 </v-clicks>
-
-<!--
-TODO before delivery: replace one of these bullets with a real, specific
-moment — the code review, the bug report, the production incident where
-you saw this happen. Audiences calibrate trust on specificity. One named
-example beats four generalisations.
--->
-
 
 ---
 
