@@ -1,0 +1,14 @@
+# Conda environment pinning the exact versions used to produce the timings
+# baked into slides.md (see benchmark_claims.py).
+#
+#   conda env create -f environment.yml
+#   conda activate numpy-talk
+#   python benchmark_claims.py
+#
+name: numpy-talk
+channels:
+  - conda-forge
+dependencies:
+  - python=3.14.3
+  - numpy=2.4.6
+  - numexpr=2.14.1
