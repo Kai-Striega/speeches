@@ -21,14 +21,15 @@ and asserted.
 import gc
 import sys
 import timeit
+import tracemalloc
 
 import numpy as np
 
-try:
-    import numexpr as ne
-    HAVE_NUMEXPR = True
-except ImportError:
-    HAVE_NUMEXPR = False
+# The closing section depends on NumPy's temporary elision firing. CPython
+# 3.14 moved the evaluation stack to stackrefs, which stopped the refcount==1
+# heuristic from recognising temporaries (numpy#28681, cpython#133164), so
+# those claims only reproduce on 3.13 and earlier.
+ELISION_EXPECTED = sys.version_info < (3, 14)
 
 
 # --------------------------------------------------------------------------
@@ -74,7 +75,7 @@ def within(measured, low, high):
 
 
 # --------------------------------------------------------------------------
-# Idea 1 -- "The familiar comparison"  (slides.md L115-123)
+# Idea 1 -- "The familiar comparison"  (slides.md L113-129)
 # --------------------------------------------------------------------------
 
 def familiar_comparison():
@@ -110,7 +111,7 @@ def familiar_comparison():
 # --------------------------------------------------------------------------
 
 def trace_line_counts():
-    header("Idea 1 / Watch what's actually happening -- settrace  (L136-158)")
+    header("Idea 1 / Watch what's actually happening -- settrace  (L134-156)")
     data = np.arange(1_000_000, dtype=np.float64)
 
     python_lines_visited = 0
@@ -436,11 +437,15 @@ def broadcasting_rules():
 
 
 # --------------------------------------------------------------------------
-# The trap / closing -- intermediates exist  (slides.md L613-641, L685-700)
+# The trap / closing -- intermediates exist  (slides.md L613-642, L686-702)
 # --------------------------------------------------------------------------
 
 def intermediates():
-    header("The trap -- chained ops allocate full-size intermediates  (L613-641)")
+    header("The trap -- chained ops allocate full-size intermediates  (L613-642)")
+    # NOTE: every step below is bound to a name, so each temporary has a
+    # refcount > 1 and elision cannot apply. That is deliberate: this section
+    # verifies the naive accounting the slide predicts. The elision sections
+    # below show what actually happens when the chain is left unnamed.
     a = np.random.rand(1000, 1000)
 
     mean = a.mean(axis=1, keepdims=True)
@@ -461,82 +466,129 @@ def intermediates():
 
 
 # --------------------------------------------------------------------------
-# One more thing -- numexpr fuses the chain  (slides.md L702-726)
+# One more thing -- NumPy elides the chained temporary  (slides.md L680-810)
 # --------------------------------------------------------------------------
 
-def numexpr_fusion():
-    header("One more thing / numexpr -- fused single pass  (L702-726)")
-    if not HAVE_NUMEXPR:
-        print("  [SKIP ] numexpr not installed")
-        return
+def peak_bytes(fn):
+    """Peak bytes allocated while fn runs, via NumPy's tracemalloc domain."""
+    tracemalloc.start()
+    tracemalloc.clear_traces()
+    fn()
+    _, pk = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    return pk
+
+
+def elision():
+    header("One more thing / temporary elision  (L686-747)")
+    print(f"          (elision expected on this interpreter: "
+          f"{ELISION_EXPECTED}; python {sys.version.split()[0]})")
 
     # the slide states this size explicitly: (2000, 2000) float64, 32 MB.
-    # It has to exceed cache or there is nothing for fusion to win.
+    # It must clear NPY_MIN_ELIDE_BYTES (256 KiB) by a wide margin.
     a = np.random.rand(2000, 2000)
-    m = a.mean(axis=1, keepdims=True)
+    unit = a.nbytes
 
-    # correctness first: both expressions must agree
-    numpy_result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
-    ne_result = ne.evaluate("sum((a - m) ** 2, axis=1)")
-    agree = np.allclose(numpy_result, ne_result)
-    line("numexpr result matches NumPy result", "must agree",
-         f"allclose={agree}", agree)
+    def chained():
+        return ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
 
-    t_np = bench(
-        "((a - a.mean(1, keepdims=True)) ** 2).sum(1)",
-        globals_={"a": a},
-    )
-    t_ne = bench(
-        "ne.evaluate('sum((a - m) ** 2, axis=1)')",
-        globals_={"a": a, "m": m, "ne": ne},
-    )
+    def defeated():
+        # same maths, but the temporary is given a name so its refcount
+        # is greater than 1 and elision cannot apply
+        m = a.mean(axis=1, keepdims=True)
+        d = a - m
+        s = d ** 2
+        return s.sum(axis=1)
 
-    print(f"          (array size used here: {a.shape}, "
-          f"{a.nbytes / 1e6:.0f} MB)")
-    line("NumPy chained expression", "~23 ms", fmt_time(t_np),
-         within(t_np, 0.001, 0.1))
-    line("numexpr fused expression", "~5 ms", fmt_time(t_ne),
-         within(t_ne, 0.0005, 0.1))
-    line("numexpr is faster than chained NumPy", "yes",
-         f"{t_np / t_ne:.2f}x", t_ne < t_np)
+    line("results agree either way", "must agree",
+         f"allclose={np.allclose(chained(), defeated())}",
+         np.allclose(chained(), defeated()))
 
-    # "The catch" (L728-747): out= gets most of the win with no dependency.
-    buf = np.empty_like(a)
+    n_chained = peak_bytes(chained) / unit
+    n_defeated = peak_bytes(defeated) / unit
 
-    def inplace():
-        np.subtract(a, m, out=buf)
-        np.multiply(buf, buf, out=buf)
-        return buf.sum(axis=1)
+    expect = "1 intermediate (elided)" if ELISION_EXPECTED else "2 (no elision on 3.14)"
+    want = 1 if ELISION_EXPECTED else 2
+    line("chained expression allocates", expect,
+         f"{n_chained:.2f} full-size intermediates",
+         abs(n_chained - want) < 0.3)
+    line("naming the temporary defeats elision", "2 intermediates",
+         f"{n_defeated:.2f} full-size intermediates",
+         abs(n_defeated - 2) < 0.3)
 
-    line("out= / in-place matches the chained result", "must agree",
-         f"allclose={np.allclose(numpy_result, inplace())}",
-         np.allclose(numpy_result, inplace()))
-    t_out = bench("inplace()", globals_={"inplace": inplace})
-    line("out= / in-place, no new dependency", "~6 ms", fmt_time(t_out),
-         within(t_out, 0.001, 0.05))
-    line("out= recovers most of the numexpr win", "close to numexpr",
-         f"{t_np / t_out:.2f}x vs numexpr's {t_np / t_ne:.2f}x",
-         t_out < t_np)
+    t_chained = bench("chained()", globals_={"chained": chained})
+    t_defeated = bench("defeated()", globals_={"defeated": defeated})
+    line("chained expression", "~8 ms on 3.13" if ELISION_EXPECTED else "~22 ms on 3.14",
+         fmt_time(t_chained), within(t_chained, 0.001, 0.1))
+    line("same maths with the temporary named", "~22 ms",
+         fmt_time(t_defeated), within(t_defeated, 0.001, 0.1))
+    if ELISION_EXPECTED:
+        line("elision makes the chain faster", "~2.7x",
+             f"{t_defeated / t_chained:.2f}x", t_defeated > t_chained * 1.5)
 
-    # "The catch": when the array fits in cache there is nothing to win.
-    small = np.random.rand(1000, 1000)
-    sm = small.mean(axis=1, keepdims=True)
-    t_np_s = bench("((a - a.mean(1, keepdims=True)) ** 2).sum(1)",
-                   globals_={"a": small})
-    t_ne_s = bench("ne.evaluate('sum((a - m) ** 2, axis=1)')",
-                   globals_={"a": small, "m": sm, "ne": ne})
-    line("at (1000, 1000) / 8 MB the two are a wash", "roughly equal",
-         f"numexpr {t_np_s / t_ne_s:.2f}x", t_np_s / t_ne_s < 2.0)
+
+def elision_rules():
+    header("One more thing / when elision does not fire  (L770-791)")
+    n = 4_000_000
+    a = np.ones(n)
+    b = np.ones(n)
+    unit = a.nbytes
+
+    def n_temps(fn):
+        return peak_bytes(fn) / unit
+
+    want = 1 if ELISION_EXPECTED else 2
+    for label, fn in [
+        ("a + b + b (binary operator)", lambda: a + b + b),
+        ("(a + b) * 2 (scalar rhs)", lambda: (a + b) * 2),
+        ("-(a + b) (unary operator)", lambda: -(a + b)),
+        ("b * (a * 2) (commutative swap)", lambda: b * (a * 2)),
+    ]:
+        got = n_temps(fn)
+        line(label, f"{want} intermediate(s)", f"{got:.2f}",
+             abs(got - want) < 0.3)
+
+    # these never elide, on any interpreter
+    line("np.sqrt(a + b) (ufunc call, not an operator)", "2 intermediates",
+         f"{n_temps(lambda: np.sqrt(a + b)):.2f}",
+         abs(n_temps(lambda: np.sqrt(a + b)) - 2) < 0.3)
+
+    A = np.ones((2000, 2000))
+    full = np.ones((2000, 2000))
+    col = np.ones((2000, 1))
+    u2 = A.nbytes
+    same = peak_bytes(lambda: (A + full) * full) / u2
+    bcast = peak_bytes(lambda: (A + full) * col) / u2
+    line("(A + full) * full (shapes match)", f"{want} intermediate(s)",
+         f"{same:.2f}", abs(same - want) < 0.3)
+    line("(A + full) * col (rhs broadcasts) -> elision refuses",
+         "2 intermediates", f"{bcast:.2f}", abs(bcast - 2) < 0.3)
+
+
+def elision_threshold():
+    header("One more thing / the 256 KiB threshold  (L749-768)")
+    # NPY_MIN_ELIDE_BYTES = 256 * 1024 in temp_elide.c
+    for nbytes, should_elide in [(128 * 1024, False), (256 * 1024, True)]:
+        x = np.ones(nbytes // 8)
+        y = np.ones(nbytes // 8)
+        got = peak_bytes(lambda: x + y + y) / x.nbytes
+        want = 1 if (should_elide and ELISION_EXPECTED) else 2
+        label = f"{nbytes // 1024} KiB arrays"
+        expect = f"{want} intermediate(s)"
+        line(label, expect, f"{got:.2f}", abs(got - want) < 0.3)
 
 
 # --------------------------------------------------------------------------
 
 def main():
     print("Benchmarking the claims in slides.md")
-    print(f"numpy {np.__version__}", end="")
-    if HAVE_NUMEXPR:
-        print(f" | numexpr {ne.__version__}", end="")
-    print(f" | python {sys.version.split()[0]}")
+    print(f"numpy {np.__version__} | python {sys.version.split()[0]}")
+    if not ELISION_EXPECTED:
+        print("  NOTE: CPython 3.14+ broke NumPy's temporary elision "
+              "(numpy#28681).")
+        print("        The closing section's timings only reproduce on 3.13 "
+              "or earlier;")
+        print("        those checks below assert the 3.14 behaviour instead.")
 
     sections = [
         familiar_comparison,
@@ -553,7 +605,9 @@ def main():
         stride_zero,
         broadcasting_rules,
         intermediates,
-        numexpr_fusion,
+        elision,
+        elision_rules,
+        elision_threshold,
     ]
     for section in sections:
         try:

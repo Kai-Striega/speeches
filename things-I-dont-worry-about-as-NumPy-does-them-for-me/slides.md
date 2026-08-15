@@ -619,7 +619,7 @@ It does **not** prevent intermediates from chained operations.
 result = (a - a.mean(axis=1, keepdims=True)) ** 2
 ```
 
-What gets allocated:
+What our model says gets allocated:
 
 <v-clicks>
 
@@ -632,7 +632,8 @@ What gets allocated:
 <v-clicks>
 
 - The mean broadcast: no tile, contract held.
-- But chaining still costs you intermediates.
+- But chaining still costs you intermediates. Two of them.
+- Hold onto that number. We're going to count them for real later.
 
 </v-clicks>
 
@@ -660,7 +661,7 @@ a - a.mean(...)                 # broadcasts (N, 1) against (N, M)
                                 # full-size intermediate
 
 (...) ** 2                      # C kernel, elementwise
-                                # another full-size intermediate
+                                # another full-size intermediate?
                                  
 .sum(axis=1)                    # C kernel, reduction
                                 # collapses to shape (N,)
@@ -678,7 +679,7 @@ layout: section
 
 # One more thing
 
-## The intermediates we never killed
+## The intermediate we never killed
 
 ---
 
@@ -691,56 +692,118 @@ result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
 <v-clicks>
 
 - Broadcasting saved the tile.
-- But each chained step still wrote a **full-size intermediate** to memory.
+- But each chained step still writes a **full-size intermediate** to memory.
 - NumPy evaluates one operation at a time. It finishes `a - mean`, stores it, then starts `** 2`.
 - For a big `a`, that's two full arrays written out and read straight back. Pure bandwidth (idea 2).
+- Everything in this talk says that costs us two allocations. So let's count them.
 
 </v-clicks>
 
 ---
 
-# numexpr: same expression, one pass
+# Count them
 
-```python {1|3|5}
-import numexpr as ne
+NumPy registers its allocations with `tracemalloc`, so we can just look.
 
-m = a.mean(axis=1, keepdims=True)         # small, shape (N, 1)
+```python {1-3|5-7}
+tracemalloc.start()
+((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
+tracemalloc.get_traced_memory()      # a is (2000, 2000), 32 MB
 
-result = ne.evaluate('sum((a - m) ** 2, axis=1)')
+# predicted: 64 MB, two full-size intermediates
+# measured:  32 MB
 ```
 
 <v-clicks>
 
-- numexpr compiles the string into one fused loop over the buffers.
-- It walks the data **once**, in cache-sized chunks, across threads.
-- `a - m` and `** 2` never become full arrays. The intermediates are gone.
-
-```python
-# a is (2000, 2000) float64, 32 MB
-%timeit ((a - a.mean(1, keepdims=True)) ** 2).sum(1)  # ~23 ms
-%timeit ne.evaluate('sum((a - m) ** 2, axis=1)')      # ~5 ms
-```
+- One intermediate. Not two.
+- Nobody wrote `out=`. Nobody imported anything.
+- **NumPy elided it.**
 
 </v-clicks>
 
 ---
 
-# The catch
+# Only a temporary can have a refcount of 1
+
+```python {1-3|5}
+x = a + b + b
+#   ^^^^^ this temporary is never given a name,
+#         so nothing else holds a reference to it
+
+# numpy/_core/src/multiarray/temp_elide.c
+```
 
 <v-clicks>
 
-- It's not free magic. numexpr supports a **subset** of NumPy: arithmetic, comparisons, a handful of functions and reductions.
-- The expression is a **string**, so you give up the syntax checking and tooling that real code gets.
-- For a single operation there's nothing to fuse, and if the array already fits in cache there's nothing to win. At (1000, 1000) the same expression is a wash.
-- You can get most of the way there without the dependency:
+- `LOAD_FAST` bumps the refcount of every *named* variable it pushes.
+- So a refcount of 1 is a reliable signal: this array is nobody else's.
+- If nobody else can see it, overwriting it changes no observable behaviour.
+- NumPy rewrites `tmp ** 2` into `tmp **= 2` and reuses the buffer.
+- CPython plays the same trick to grow strings in place.
+
+</v-clicks>
+
+---
+
+# The paranoid part
+
+A Cython extension can also call `PyNumber_Add` with a refcount of 1. That array might not be a temporary at all.
+
+<v-clicks>
+
+- So before eliding, NumPy calls `backtrace()` and walks up to 10 stack frames.
+- Every frame must sit inside libpython or NumPy itself, until it reaches `_PyEval_EvalFrameDefault`.
+- Anything else on the stack and it refuses. It has to know the interpreter called it.
+- That stack walk costs about 10 microseconds, which buys a rule:
 
 ```python
-np.subtract(a, m, out=buf)      # ~6 ms, no new allocation
-np.multiply(buf, buf, out=buf)
-buf.sum(axis=1)
+NPY_MIN_ELIDE_BYTES = 256 * 1024     # below this, don't even check
 ```
 
-- Reach for numexpr when you have a **chain** of elementwise operations over arrays too big for cache. That's exactly where NumPy's intermediates hurt.
+- 128 KiB: two allocations. 256 KiB: one. The cliff is exactly there.
+
+</v-clicks>
+
+---
+
+# When it doesn't fire
+
+```python {1-2|4-5|7-8}
+t = a - m                  # t is named, refcount > 1
+t ** 2                     # no elision, allocates
+
+np.sqrt(a - m)             # ufunc call, not an operator
+                           # no elision, allocates
+
+(a - m) * col              # col is (N, 1), shapes differ
+                           # elision refuses to broadcast
+```
+
+<v-clicks>
+
+- Give the temporary a name and you have taken it away.
+- The hooks live in the operators, not in `np.sqrt(...)`.
+- And `can_elide_temp` demands matching shapes. Broadcasting saves the tile, but it costs you the elision.
+
+</v-clicks>
+
+---
+
+# And then it stopped
+
+```python
+# python 3.13:   32 MB,  8.3 ms
+# python 3.14:   64 MB, 22.4 ms      <- same numpy, same expression
+```
+
+<v-clicks>
+
+- CPython 3.14 moved the evaluation stack to *stackrefs*.
+- Temporaries no longer reliably show a refcount of 1, so the heuristic stopped recognising them.
+- Nothing raised. Nothing warned. The expression got 2.7x slower and kept returning the right answer.
+- Fixed for correctness ([numpy#28681](https://github.com/numpy/numpy/issues/28681)), and CPython added `PyUnstable_Object_IsUniqueReferencedTemporary` for it. On 3.14.0 I still measure no elision.
+- **This is the point of the whole talk.** You cannot notice this without a model of what NumPy was doing for you.
 
 </v-clicks>
 
@@ -752,7 +815,7 @@ buf.sum(axis=1)
 - Operations relocate to C.
 - Broadcasting holds a contract, and it holds it with a stride of 0.
 - The cost is wherever copies happen. Usually not where you wrote it.
-- When a chain of operations is the cost, a tool like numexpr can fuse it away.
+- NumPy quietly elides a chained temporary for you, and quietly stops when the interpreter changes underneath it.
 
 ## The cost isn't where you think it is!
 
@@ -766,6 +829,7 @@ buf.sum(axis=1)
   - Where are the C kernels?
   - Is this reshape a view or a copy? (`np.shares_memory` will tell you)
   - What is broadcasting allocating, and what isn't it?
+  - How many intermediates is this chain really paying for? (`tracemalloc` will tell you)
 
 - The model isn't useful because it makes you write clever code.
 - It's useful because it makes the costs **visible**, and once you can see them, you can decide which ones to pay.
@@ -781,7 +845,8 @@ buf.sum(axis=1)
 - [Array Programming with NumPy | Harris et al.](https://arxiv.org/abs/2006.10256). The canonical paper.
 - [Internal organization of NumPy arrays](https://numpy.org/doc/stable/dev/internals.html). Authoritative on memory layout.
 - [Advanced NumPy | Scientific Python Lectures](https://lectures.scientific-python.org/advanced/advanced_numpy/index.html). Strides, ufuncs, and the C API in depth.
-- [numexpr documentation](https://numexpr.readthedocs.io/). Fusing chained expressions to skip the intermediates.
+- [`temp_elide.c`](https://github.com/numpy/numpy/blob/main/numpy/_core/src/multiarray/temp_elide.c). 400 lines, and the comment at the top explains the whole trick.
+- [numpy#28681](https://github.com/numpy/numpy/issues/28681) and [cpython#133164](https://github.com/python/cpython/issues/133164). What stackrefs did to elision, and the C API added to fix it.
 
 ---
 layout: center
