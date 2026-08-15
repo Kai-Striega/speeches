@@ -637,41 +637,6 @@ What our model says gets allocated:
 
 </v-clicks>
 
----
-layout: section
----
-
-# The closing
-
----
-
-# The promise, kept
-
-```python
-result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
-```
-
-```python {1-3|5-7|9-10|12-13}
-a.mean(axis=1, keepdims=True)   # C kernel (idea 1)
-                                # shape (N, 1), keepdims preserves
-                                # the column for broadcasting
-                                 
-a - a.mean(...)                 # broadcasts (N, 1) against (N, M)
-                                # no tile allocated (idea 3)
-                                # full-size intermediate
-
-(...) ** 2                      # C kernel, elementwise
-                                # another full-size intermediate?
-                                 
-.sum(axis=1)                    # C kernel, reduction
-                                # collapses to shape (N,)
-```
-
-<v-clicks>
-
-## You can read this yourself now.
-
-</v-clicks>
 
 ---
 layout: section
