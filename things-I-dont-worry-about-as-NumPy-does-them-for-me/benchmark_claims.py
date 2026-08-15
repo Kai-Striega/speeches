@@ -78,7 +78,7 @@ def within(measured, low, high):
 # --------------------------------------------------------------------------
 
 def familiar_comparison():
-    header("Idea 1 / The familiar comparison  (L115-123)")
+    header("Idea 1 / The familiar comparison  (L113-129)")
     data = np.arange(1_000_000, dtype=np.float64)
 
     t_py = bench("[x ** 2 for x in data]", globals_={"data": data})
@@ -86,14 +86,14 @@ def familiar_comparison():
 
     line(
         "pure-Python list comprehension on 1e6 floats",
-        "~400 ms",
+        "~72 ms",
         fmt_time(t_py),
         # generous band: hardware varies a lot
         within(t_py, 0.05, 1.5),
     )
     line(
         "NumPy  data ** 2  on 1e6 floats",
-        "~2 ms",
+        "~0.25 ms",
         fmt_time(t_np),
         within(t_np, 0.0002, 0.02),
     )
@@ -106,7 +106,7 @@ def familiar_comparison():
 
 
 # --------------------------------------------------------------------------
-# Idea 1 -- "Watch what's actually happening"  (slides.md L136-158)
+# Idea 1 -- "Watch what's actually happening"  (slides.md L134-156)
 # --------------------------------------------------------------------------
 
 def trace_line_counts():
@@ -161,54 +161,112 @@ def trace_line_counts():
 
 
 # --------------------------------------------------------------------------
-# Idea 1 -- "When the relocation breaks"  (slides.md L205-214)
+# Idea 1 -- "When the relocation breaks"  (slides.md L199-217)
 # --------------------------------------------------------------------------
 
 def relocation_breaks():
-    header("Idea 1 / When the relocation breaks -- object dtype  (L205-214)")
+    header("Idea 1 / When the relocation breaks -- object dtype  (L199-217)")
     ints = np.arange(1_000_000, dtype=np.int64)
     objs = np.arange(1_000_000, dtype=object)
 
     t_int = bench("ints ** 2", globals_={"ints": ints})
     t_obj = bench("objs ** 2", globals_={"objs": objs})
 
-    line("int64 ** 2 (C kernel)", "~2 ms", fmt_time(t_int), within(t_int, 0.0002, 0.02))
-    line("object ** 2 (Python __pow__ per element)", "~80 ms",
+    line("int64 ** 2 (C kernel)", "~0.28 ms", fmt_time(t_int), within(t_int, 0.0002, 0.02))
+    line("object ** 2 (Python __pow__ per element)", "~30 ms",
          fmt_time(t_obj), within(t_obj, 0.01, 0.5))
     line("object dtype is dramatically slower", "yes",
          f"{t_obj / t_int:.0f}x slower", t_obj > t_int * 5)
 
 
 # --------------------------------------------------------------------------
-# Idea 2 -- "A surprising timing"  (slides.md L271-276)
+# Idea 2 -- "A surprising timing"  (slides.md L265-282)
 # --------------------------------------------------------------------------
 
 def surprising_timing():
-    header("Idea 2 / A surprising timing -- transpose vs copy  (L271-276)")
-    big = np.zeros((10_000, 10_000))  # 800 MB
+    header("Idea 2 / A surprising timing -- transpose vs copy  (L265-282)")
+    # np.random.random, NOT np.zeros. np.zeros comes from calloc, so its pages
+    # are lazily mapped to the shared zero page until touched -- timing a copy
+    # out of it measures page-fault behaviour as much as data movement.
+    big = np.random.random((10_000, 10_000))  # 800 MB
 
     size_mb = big.nbytes / 1e6
-    line("np.zeros((10_000, 10_000)) size", "800 MB",
+    line("np.random.random((10_000, 10_000)) size", "800 MB",
          f"{size_mb:.0f} MB", abs(size_mb - 800) < 1)
 
     t_view = bench("big.T", globals_={"big": big})
     t_copy = bench("big.T.copy()", globals_={"big": big}, min_time=0.5)
 
-    line("big.T (view, swaps strides)", "~100 ns",
+    line("big.T (view, swaps strides)", "~40 ns",
          fmt_time(t_view), within(t_view, 1e-9, 5e-6))
-    line("big.T.copy() (moves 800 MB)", "~400 ms",
-         fmt_time(t_copy), within(t_copy, 0.05, 2.0))
-    line("copy costs ~four million times more than the view",
-         "~4,000,000x", f"{t_copy / t_view:,.0f}x",
-         t_copy / t_view > 100_000)
+    line("big.T.copy() (transposing copy of 800 MB)", "~810 ms",
+         fmt_time(t_copy), within(t_copy, 0.05, 3.0))
+    line("copy costs ~twenty million times more than the view",
+         "~20,000,000x", f"{t_copy / t_view:,.0f}x",
+         t_copy / t_view > 1_000_000)
+
+    # The slide claims .T.copy() pays far more than streaming bandwidth would
+    # predict, for two reasons: fresh pages, and a cache-hostile access
+    # pattern. Break the cost apart so the claim is visible, not asserted.
+    dst = np.empty_like(big)
+    np.copyto(dst, big)  # fault the destination in first
+    t_stream = bench("np.copyto(dst, big)",
+                     globals_={"np": np, "big": big, "dst": dst}, min_time=0.5)
+    t_alloc = bench("big.copy()", globals_={"big": big}, min_time=0.5)
+
+    line("streaming copy into warm pages (the floor)", "~40 ms",
+         fmt_time(t_stream), within(t_stream, 0.005, 0.3))
+    line("linear copy with fresh allocation (adds page faults)",
+         "slower than the floor", fmt_time(t_alloc), t_alloc > t_stream)
+    line("transposing copy (adds cache-hostile strides)",
+         "slower again", fmt_time(t_copy), t_copy > t_alloc)
 
 
 # --------------------------------------------------------------------------
-# Idea 2 -- "Verifying the picture"  (slides.md L344-363)
+# Idea 2 -- "One buffer, two headers"  (slides.md L338-358)
+# --------------------------------------------------------------------------
+
+def view_aliasing():
+    header("Idea 2 / One buffer, two headers -- views alias  (L338-358)")
+    a = np.zeros((2, 3))
+    b = a.T
+    b[0, 0] = 42
+
+    line("write through b, read through a", "42.0", a[0, 0], a[0, 0] == 42.0)
+    line("b.base is a", "True", b.base is a, b.base is a)
+
+
+# --------------------------------------------------------------------------
+# Idea 2 -- "Stop guessing: ask"  (slides.md L406-425)
+# --------------------------------------------------------------------------
+
+def shares_memory_diagnostic():
+    header("Idea 2 / Stop guessing -- np.shares_memory vs .base  (L406-425)")
+    # same structure as the villain, at a size we can actually allocate
+    images = np.zeros((10, 8, 8, 3))
+    flat = images.transpose(0, 3, 1, 2).reshape(10, -1)
+
+    shares = np.shares_memory(flat, images)
+    line("np.shares_memory(flat, images) after the transposed reshape",
+         "False -> it copied", shares, shares is False)
+
+    # the slide's point: .base is NOT a copy detector. The copy has a base too,
+    # it just points at the intermediate rather than at `images`.
+    line("flat.base is None", "False -> base says nothing useful",
+         flat.base is None, flat.base is not None)
+
+    # may_share_memory is the cheap conservative version
+    line("np.may_share_memory agrees it did not share", "False",
+         np.may_share_memory(flat, images),
+         np.may_share_memory(flat, images) is False)
+
+
+# --------------------------------------------------------------------------
+# Idea 2 -- "Verifying the picture"  (slides.md L360-386)
 # --------------------------------------------------------------------------
 
 def verify_strides():
-    header("Idea 2 / Verifying the picture -- shape & strides  (L344-363)")
+    header("Idea 2 / Verifying the picture -- shape, strides, flags  (L360-386)")
     a = np.zeros((2, 3))
     b = a.T
 
@@ -222,11 +280,11 @@ def verify_strides():
 
 
 # --------------------------------------------------------------------------
-# Idea 2 -- "Non-contiguous doesn't mean scrambled"  (slides.md L369-376)
+# Idea 2 -- "Non-contiguous doesn't mean scrambled"  (slides.md L360-386)
 # --------------------------------------------------------------------------
 
 def contiguity_flags():
-    header("Idea 2 / Non-contiguous doesn't mean scrambled -- flags  (L369-376)")
+    header("Idea 2 / Non-contiguous doesn't mean scrambled -- flags  (L360-386)")
     a = np.zeros((2, 3))
     b = a.T
 
@@ -239,11 +297,11 @@ def contiguity_flags():
 
 
 # --------------------------------------------------------------------------
-# Idea 2 -- "Why copies hurt" / bandwidth  (slides.md L399-410)
+# Idea 2 -- "Why copies hurt" / bandwidth  (slides.md L427-445)
 # --------------------------------------------------------------------------
 
 def bandwidth():
-    header("Idea 2 / Why copies hurt -- memory bandwidth  (L399-410)")
+    header("Idea 2 / Why copies hurt -- memory bandwidth  (L427-445)")
     # Measure copy bandwidth on a large contiguous buffer. Pre-allocate and
     # pre-touch the destination so we time pure memory traffic, not the
     # allocation + first-touch page faults of a fresh np.copy().
@@ -258,21 +316,21 @@ def bandwidth():
     gb_moved = 2 * src.nbytes / 1e9
     gb_per_s = gb_moved / t
 
-    line("RAM moves data at roughly (read+write traffic)", "~10 GB/s",
-         f"{gb_per_s:.1f} GB/s", within(gb_per_s, 2, 100))
+    line("RAM moves data at roughly (read+write traffic)", "~40 GB/s",
+         f"{gb_per_s:.1f} GB/s", within(gb_per_s, 20, 100))
     # implied wall-clock to copy 6.3 GB (read 6.3 + write 6.3 = 12.6 GB moved)
     implied = (2 * 6.3) / gb_per_s
-    line("implied wall-clock for a 6.3 GB copy at this bandwidth",
-         "slide says ~300 ms",
-         f"{implied * 1000:.0f} ms", implied < 5.0)
+    line("implied wall-clock for a 6.3 GB streaming copy",
+         "~300 ms", f"{implied * 1000:.0f} ms",
+         within(implied, 0.2, 0.45))
 
 
 # --------------------------------------------------------------------------
-# The villain -- transpose then reshape copies  (slides.md L73-87, L417-471)
+# The villain -- transpose then reshape copies  (slides.md L73-89, L447-505)
 # --------------------------------------------------------------------------
 
 def villain():
-    header("The villain -- transpose then reshape forces a copy  (L417-471)")
+    header("The villain -- transpose then reshape forces a copy  (L447-505)")
 
     # full-size byte arithmetic (we do NOT allocate 6.3 GB; we compute it)
     shape = (1000, 512, 512, 3)
@@ -301,20 +359,24 @@ def villain():
     line("reshape of the contiguous array shares memory?",
          "yes -> reshape is a VIEW", shares_c, shares_c is True)
 
-    # control: explicit .copy() before reshape makes reshape free (a view)
-    t_copied = small.transpose(0, 3, 1, 2).copy()
+    # control: an explicit copy before reshape makes reshape free (a view).
+    # The slide uses np.ascontiguousarray because it names the intent.
+    t_copied = np.ascontiguousarray(small.transpose(0, 3, 1, 2))
+    line("ascontiguousarray gives back a C-contiguous array",
+         "C-contiguous ok", t_copied.flags["C_CONTIGUOUS"],
+         t_copied.flags["C_CONTIGUOUS"])
     flat2 = t_copied.reshape(t_copied.shape[0], -1)
     shares2 = np.shares_memory(flat2, t_copied)
-    line(".copy() then reshape -> reshape is a view of the copy",
+    line("ascontiguousarray then reshape -> reshape is a view of the copy",
          "yes", shares2, shares2 is True)
 
 
 # --------------------------------------------------------------------------
-# Idea 3 -- "The contract in code"  (slides.md L508-521)
+# Idea 3 -- "The contract in code"  (slides.md L540-555)
 # --------------------------------------------------------------------------
 
 def broadcasting_sizes():
-    header("Idea 3 / The contract in code -- sizes  (L508-521)")
+    header("Idea 3 / The contract in code -- sizes  (L540-555)")
     a = np.zeros((1000, 1000))
     b = np.arange(1000)
     result = a + b
@@ -330,11 +392,34 @@ def broadcasting_sizes():
 
 
 # --------------------------------------------------------------------------
-# Idea 3 -- "The rules"  (slides.md L525-545)
+# Idea 3 -- "How? Stride zero"  (slides.md L557-576)
+# --------------------------------------------------------------------------
+
+def stride_zero():
+    header("Idea 3 / How? Stride zero -- broadcasting is a 0 stride  (L557-576)")
+    b = np.arange(1000)
+    line("b.strides", "(8,)", b.strides, b.strides == (8,))
+
+    bt = np.broadcast_to(b, (1000, 1000))
+    line("np.broadcast_to(b, (1000, 1000)).strides", "(0, 8)",
+         bt.strides, bt.strides == (0, 8))
+    line("the broadcast view allocated no new buffer", "shares b's memory",
+         np.shares_memory(bt, b), np.shares_memory(bt, b))
+
+    # the same 0 stride is what a + b uses under the hood
+    a = np.zeros((1000, 1000))
+    bcast = np.broadcast_arrays(a, b)[1]
+    line("the operand NumPy actually feeds the kernel for a + b",
+         "stride 0 on the broadcast axis", bcast.strides,
+         bcast.strides[0] == 0)
+
+
+# --------------------------------------------------------------------------
+# Idea 3 -- "The rules"  (slides.md L578-600)
 # --------------------------------------------------------------------------
 
 def broadcasting_rules():
-    header("Idea 3 / The rules -- shape resolution  (L525-545)")
+    header("Idea 3 / The rules -- shape resolution  (L578-600)")
 
     r1 = np.broadcast_shapes((1000, 1000), (1000,))
     line("(1000,1000) + (1000,) -> ", "(1000, 1000)", r1, r1 == (1000, 1000))
@@ -351,11 +436,11 @@ def broadcasting_rules():
 
 
 # --------------------------------------------------------------------------
-# The trap / closing -- intermediates exist  (slides.md L560-586, L650-663)
+# The trap / closing -- intermediates exist  (slides.md L613-641, L685-700)
 # --------------------------------------------------------------------------
 
 def intermediates():
-    header("The trap -- chained ops allocate full-size intermediates  (L560-586)")
+    header("The trap -- chained ops allocate full-size intermediates  (L613-641)")
     a = np.random.rand(1000, 1000)
 
     mean = a.mean(axis=1, keepdims=True)
@@ -376,17 +461,17 @@ def intermediates():
 
 
 # --------------------------------------------------------------------------
-# One more thing -- numexpr fuses the chain  (slides.md L667-688)
+# One more thing -- numexpr fuses the chain  (slides.md L702-726)
 # --------------------------------------------------------------------------
 
 def numexpr_fusion():
-    header("One more thing / numexpr -- fused single pass  (L667-688)")
+    header("One more thing / numexpr -- fused single pass  (L702-726)")
     if not HAVE_NUMEXPR:
         print("  [SKIP ] numexpr not installed")
         return
 
-    # the slide does not state the array size; use a large 2-D array so the
-    # chain of intermediates actually costs bandwidth.
+    # the slide states this size explicitly: (2000, 2000) float64, 32 MB.
+    # It has to exceed cache or there is nothing for fusion to win.
     a = np.random.rand(2000, 2000)
     m = a.mean(axis=1, keepdims=True)
 
@@ -408,12 +493,40 @@ def numexpr_fusion():
 
     print(f"          (array size used here: {a.shape}, "
           f"{a.nbytes / 1e6:.0f} MB)")
-    line("NumPy chained expression", "~9 ms", fmt_time(t_np),
+    line("NumPy chained expression", "~23 ms", fmt_time(t_np),
          within(t_np, 0.001, 0.1))
     line("numexpr fused expression", "~5 ms", fmt_time(t_ne),
          within(t_ne, 0.0005, 0.1))
     line("numexpr is faster than chained NumPy", "yes",
          f"{t_np / t_ne:.2f}x", t_ne < t_np)
+
+    # "The catch" (L728-747): out= gets most of the win with no dependency.
+    buf = np.empty_like(a)
+
+    def inplace():
+        np.subtract(a, m, out=buf)
+        np.multiply(buf, buf, out=buf)
+        return buf.sum(axis=1)
+
+    line("out= / in-place matches the chained result", "must agree",
+         f"allclose={np.allclose(numpy_result, inplace())}",
+         np.allclose(numpy_result, inplace()))
+    t_out = bench("inplace()", globals_={"inplace": inplace})
+    line("out= / in-place, no new dependency", "~6 ms", fmt_time(t_out),
+         within(t_out, 0.001, 0.05))
+    line("out= recovers most of the numexpr win", "close to numexpr",
+         f"{t_np / t_out:.2f}x vs numexpr's {t_np / t_ne:.2f}x",
+         t_out < t_np)
+
+    # "The catch": when the array fits in cache there is nothing to win.
+    small = np.random.rand(1000, 1000)
+    sm = small.mean(axis=1, keepdims=True)
+    t_np_s = bench("((a - a.mean(1, keepdims=True)) ** 2).sum(1)",
+                   globals_={"a": small})
+    t_ne_s = bench("ne.evaluate('sum((a - m) ** 2, axis=1)')",
+                   globals_={"a": small, "m": sm, "ne": ne})
+    line("at (1000, 1000) / 8 MB the two are a wash", "roughly equal",
+         f"numexpr {t_np_s / t_ne_s:.2f}x", t_np_s / t_ne_s < 2.0)
 
 
 # --------------------------------------------------------------------------
@@ -430,11 +543,14 @@ def main():
         trace_line_counts,
         relocation_breaks,
         surprising_timing,
+        view_aliasing,
+        shares_memory_diagnostic,
         verify_strides,
         contiguity_flags,
         bandwidth,
         villain,
         broadcasting_sizes,
+        stride_zero,
         broadcasting_rules,
         intermediates,
         numexpr_fusion,
