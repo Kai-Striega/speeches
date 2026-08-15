@@ -5,10 +5,15 @@
 #   conda activate numpy-talk
 #   python benchmark_claims.py
 #
+# Python is pinned to 3.13 on purpose. CPython 3.14 moved the evaluation
+# stack to stackrefs, which stopped NumPy's temporary elision from
+# recognising temporaries (numpy#28681, cpython#133164). The closing
+# section of the talk depends on elision actually firing, so the timings
+# there only reproduce on 3.13 or earlier. benchmark_claims.py detects
+# which side of that line it is running on and reports it.
 name: numpy-talk
 channels:
   - conda-forge
 dependencies:
-  - python=3.14.3
+  - python=3.13
   - numpy=2.4.6
-  - numexpr=2.14.1
