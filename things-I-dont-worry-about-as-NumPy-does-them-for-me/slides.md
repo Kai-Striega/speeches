@@ -32,7 +32,7 @@ Kai Striega
 - Some of NumPy's feats:
     - The [first image of a black hole](https://numpy.org/case-studies/blackhole-image/).
     - The [detection of gravitational waves](https://numpy.org/case-studies/gw-discov/).
-    - [Protein Structure Prediction](https://www.nature.com/articles/s41586-021-03819-2) (2024 Noble Prize in Chemistry).
+    - [Protein Structure Prediction](https://www.nature.com/articles/s41586-021-03819-2) (2024 Nobel Prize in Chemistry).
     - Humanity's [first flight on Mars](https://github.com/readme/featured/nasa-ingenuity-helicopter).
     - Was published in [Nature](https://www.nature.com/articles/s41586-020-2649-2), a journal that almost never publishes software.
 
@@ -73,7 +73,7 @@ Kai Striega
 # The villain
 
 ```python {1|2|3}{lines:true}
-images = load_images()                 # (1000, 512, 512, 3)
+images = load_images()                 # (1000, 512, 512, 3) float64
 images = images.transpose(0, 3, 1, 2)
 flat = images.reshape(1000, -1)        # ← 6.3 GB copy
 ```
@@ -81,7 +81,7 @@ flat = images.reshape(1000, -1)        # ← 6.3 GB copy
 <v-clicks>
 
 - Three innocent-looking lines.
-- One of them just allocated and moved 3 gigabytes.
+- One of them just allocated and moved 6.3 gigabytes.
 - **The cost isn't where you think it is.**
 
 </v-clicks>
@@ -133,11 +133,7 @@ data = np.arange(1_000_000, dtype=np.float64)
 
 # Watch what's actually happening
 
-```python {1-3|5-9|11-15|17-21}
-import sys
-
-python_lines_visited = 0
-
+```python {1-5|7-11|13-17}
 def counter(frame, event, arg):
     global python_lines_visited
     if event == 'line':
@@ -269,16 +265,16 @@ typedef struct {
 # A surprising timing
 
 ```python {1|3|4}
-big = np.zeros((10_000, 10_000))    # 800 MB
+big = np.random.random((10_000, 10_000))   # 800 MB
 
-%timeit big.T                       # ~60 ns
-%timeit big.T.copy()                # ~550 ms
+%timeit big.T                              # ~40 ns
+%timeit big.T.copy()                       # ~810 ms
 ```
 
 <v-clicks>
 
-- Transposing 800MB in **60 nanoseconds**.
-- The same operation with `.copy()` costs about nine million times more.
+- Transposing 800MB in **40 nanoseconds**.
+- The same operation with `.copy()` costs about twenty million times more.
 - What is `.T` actually doing, then?
 
 </v-clicks>
@@ -339,41 +335,53 @@ buffer in memory:    [1] [2] [3] [4] [5] [6] (each box = 8 bytes, float64)
 
 ---
 
-# Verifying the picture
+# One buffer, two headers
 
-```python{|1|2-3|4-5|6-7}
+```python{|1-2|3-4|5-6}
 >>> a = np.zeros((2, 3))
->>> a.itemsize
-8  # size of each element in bytes
->>> a.shape
-(2, 3)  # number of elements in each dim
->>> a.strides
-(24, 8)  # size of the step taken to traverse that dim
-```
-
-- Strides are in **bytes**
-- `(24, 8)` is "skip a row" then "skip a column" for a `float64` array.
-
-```python{|1|2-3|4-5}
 >>> b = a.T
->>> b.shape
-(3, 2)
->>> b.strides
-(8, 24)
+>>> b[0, 0] = 42
+>>> a[0, 0]
+42.0
+>>> b.base is a
+True
 ```
+
+<v-clicks>
+
+- We never touched `a`. We wrote through `b`.
+- There was only ever one buffer, so there was only ever one place to write.
+- The header/buffer split isn't trivia. It decides who sees your writes.
+
+</v-clicks>
 
 ---
 
-# Non-contiguous doesn't mean scrambled
+# Verifying the picture
 
-```python{1-2|3-4|5-6}
->>> a.flags['C_CONTIGUOUS']
-True
->>> b.flags['C_CONTIGUOUS']
-False
->>> b.flags['F_CONTIGUOUS']
-True
+```python{|1-3|4-5|6-7|9-13}
+>>> a = np.zeros((2, 3))
+>>> a.itemsize
+8         # bytes per element
+>>> a.shape
+(2, 3)    # elements per dim
+>>> a.strides
+(24, 8)   # bytes to step per dim
+
+>>> b = a.T
+>>> b.shape, b.strides
+((3, 2), (8, 24))
+>>> a.flags['C_CONTIGUOUS'], b.flags['C_CONTIGUOUS']
+(True, False)
 ```
+
+<v-clicks>
+
+- Strides are in **bytes**. `(24, 8)` is "skip a row" then "skip a column" for `float64`.
+- `b` is not C-contiguous. But it *is* `F_CONTIGUOUS`: still perfectly regular, just column-major.
+- Non-contiguous doesn't mean scrambled. That regularity is exactly what lets BLAS take `b` without a copy.
+
+</v-clicks>
 
 ---
 
@@ -389,10 +397,30 @@ True
   - A contiguous array (C or F) can almost always be reshaped without copying.
   - A non-contiguous array sometimes can. It depends on which axes you touch.
 
-> Heuristic: if you've done a transpose, fancy indexing, or a axis-rearranging operation recently, **assume reshape might copy**. Check `flags` if you care.
+> Heuristic: if you've done a transpose, fancy indexing, or an axis-rearranging operation recently, **assume reshape might copy**.
 
 </v-clicks>
 
+---
+
+# Stop guessing: ask
+
+```python{|1-3|5-7}
+>>> flat = images.transpose(0, 3, 1, 2).reshape(1000, -1)
+>>> np.shares_memory(flat, images)
+False                      # it copied
+
+>>> flat.base is None
+False                      # ...but base says nothing useful here
+```
+
+<v-clicks>
+
+- `np.shares_memory` is the question you actually mean: *did these end up on the same bytes?*
+- `.base` is tempting and misleading. A copy still has a `base`, it just points at the copy.
+- On pathological strides `shares_memory` can be slow. `np.may_share_memory` is the cheap conservative answer.
+
+</v-clicks>
 
 ---
 
@@ -403,7 +431,9 @@ It's slow because the bytes have to *move*.
 
 <v-clicks>
 
-- RAM serves data at ~20 GB/s, so a 6.3 GB copy is ~300 ms of pure traffic.
+- A copy reads every byte and writes every byte, so 6.3 GB in means **12.6 GB moved**.
+- This machine streams about 40 GB/s, so that is ~300 ms of pure traffic.
+- That is the **floor**, and only a streaming copy hits it. `big.T.copy()` had to fault in fresh pages *and* read against the grain of the cache, so it paid 810 ms for traffic worth 40 ms.
 - While that happens, the cache fills with data we won't reuse.
 - The *next* operation pays again to pull its inputs back in.
 
@@ -423,7 +453,7 @@ flat = images.reshape(1000, -1)          # 6.3 GB copy
 ```
 
 - Remember this from the start?
-- I said something here cost 3 gigabytes.
+- I said something here cost 6.3 gigabytes.
 - Let's read it!
 
 ---
@@ -457,7 +487,8 @@ flat = images.reshape(1000, -1)         # needs contiguous layout
 
 ```python {1|2|3}
 images = load_images()
-images = images.transpose(0, 3, 1, 2).copy()  # explicit copy here
+images = np.ascontiguousarray(                # explicit copy here
+    images.transpose(0, 3, 1, 2))
 flat = images.reshape(1000, -1)               # now free
 ```
 
@@ -465,7 +496,8 @@ flat = images.reshape(1000, -1)               # now free
 
 - The fix doesn't make the copy go away.
 - The 6.3 GB still gets moved.
-- What changed: the copy is now on the line that says `copy`, instead of hiding inside `reshape`.
+- `.copy()` would work too. `ascontiguousarray` names the thing we actually want.
+- What changed: the copy is now on the line that asks for it, instead of hiding inside `reshape`.
 - **The model doesn't avoid copies. It makes them visible.**
 
 </v-clicks>
@@ -518,7 +550,28 @@ What didn't happen:
 
 - `b` was **not** tiled to (1000, 1000)
 - No 8 MB intermediate was allocated
-- The C kernel iterated over `a`'s shape, reading `b` modularly
+- The C kernel iterated over `a`'s shape, re-reading the same 8 KB of `b`
+
+---
+
+# How? Stride zero
+
+```python{|1-3|5-6}
+>>> b = np.arange(1000)
+>>> b.strides
+(8,)
+
+>>> np.broadcast_to(b, (1000, 1000)).strides
+(0, 8)
+```
+
+<v-clicks>
+
+- Step **zero bytes** to move down a row. Never move. Read the same 8 KB a thousand times.
+- There is no tiling code and no special case in the kernel. It's the stride machinery from idea 2, handed a 0.
+- Broadcasting isn't a separate feature. It's what the header can already express.
+
+</v-clicks>
 
 ---
 
@@ -551,8 +604,8 @@ ValueError: operands could not be broadcast together
 Remember why copies hurt: bandwidth and cache eviction.
 
 - Broadcasting refuses to allocate the tile, so neither cost gets paid.
-- The C kernel streams the original buffers, and the cache stays warm.
-- A warm cache is what lets NumPy hand off to **SIMD** instructions or **BLAS** routines underneath.
+- Better than warm: the stride-0 axis re-reads 8 KB that never leaves L1.
+- Contiguous, predictable strides are also the precondition for handing off to **SIMD** instructions or **BLAS** routines underneath.
 - You don't ask for any of this. It's what staying inside the contract buys you.
 
 ---
@@ -565,8 +618,6 @@ It does **not** prevent intermediates from chained operations.
 ```python
 result = (a - a.mean(axis=1, keepdims=True)) ** 2
 ```
-
-You'll recognise the shape of this. We're warming up for the closing.
 
 What gets allocated:
 
@@ -586,22 +637,6 @@ What gets allocated:
 </v-clicks>
 
 ---
-
-# Bridge
-
-You now have all three lenses.
-
-<v-clicks>
-
-- The work lives in C.
-- The array is a header pointing at a buffer.
-- Broadcasting is a contract that saves the tile.
-
-- Let's use them!
-
-</v-clicks>
-
----
 layout: section
 ---
 
@@ -609,7 +644,7 @@ layout: section
 
 ---
 
-# The promise
+# The promise, kept
 
 ```python
 result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
@@ -633,7 +668,7 @@ a - a.mean(...)                 # broadcasts (N, 1) against (N, M)
 
 <v-clicks>
 
-## You could do this without me!
+## You can read this yourself now.
 
 </v-clicks>
 
@@ -681,7 +716,8 @@ result = ne.evaluate('sum((a - m) ** 2, axis=1)')
 - `a - m` and `** 2` never become full arrays. The intermediates are gone.
 
 ```python
-%timeit ((a - a.mean(1, keepdims=True)) ** 2).sum(1)  # ~8 ms
+# a is (2000, 2000) float64, 32 MB
+%timeit ((a - a.mean(1, keepdims=True)) ** 2).sum(1)  # ~23 ms
 %timeit ne.evaluate('sum((a - m) ** 2, axis=1)')      # ~5 ms
 ```
 
@@ -695,8 +731,16 @@ result = ne.evaluate('sum((a - m) ** 2, axis=1)')
 
 - It's not free magic. numexpr supports a **subset** of NumPy: arithmetic, comparisons, a handful of functions and reductions.
 - The expression is a **string**, so you give up the syntax checking and tooling that real code gets.
-- For a single operation there's nothing to fuse, so there's nothing to gain.
-- Reach for it when you have a **chain** of elementwise operations over large arrays. That's exactly where NumPy's intermediates hurt.
+- For a single operation there's nothing to fuse, and if the array already fits in cache there's nothing to win. At (1000, 1000) the same expression is a wash.
+- You can get most of the way there without the dependency:
+
+```python
+np.subtract(a, m, out=buf)      # ~6 ms, no new allocation
+np.multiply(buf, buf, out=buf)
+buf.sum(axis=1)
+```
+
+- Reach for numexpr when you have a **chain** of elementwise operations over arrays too big for cache. That's exactly where NumPy's intermediates hurt.
 
 </v-clicks>
 
@@ -706,7 +750,7 @@ result = ne.evaluate('sum((a - m) ** 2, axis=1)')
 
 - An ndarray is a header pointing at a buffer.
 - Operations relocate to C.
-- Broadcasting holds a contract.
+- Broadcasting holds a contract, and it holds it with a stride of 0.
 - The cost is wherever copies happen. Usually not where you wrote it.
 - When a chain of operations is the cost, a tool like numexpr can fuse it away.
 
@@ -720,7 +764,7 @@ result = ne.evaluate('sum((a - m) ** 2, axis=1)')
 
 - When you next look at NumPy code, yours or someone else's, read it the way we just read these examples.
   - Where are the C kernels?
-  - Is this reshape a view or a copy?
+  - Is this reshape a view or a copy? (`np.shares_memory` will tell you)
   - What is broadcasting allocating, and what isn't it?
 
 - The model isn't useful because it makes you write clever code.
@@ -736,7 +780,7 @@ result = ne.evaluate('sum((a - m) ** 2, axis=1)')
 - [Advanced NumPy | SciPy Japan 2019 | Juan Nunez-Iglesias](https://www.youtube.com/watch?v=cYugp9IN1-Q). Goes deeper on strides, views, and the C side.
 - [Array Programming with NumPy | Harris et al.](https://arxiv.org/abs/2006.10256). The canonical paper.
 - [Internal organization of NumPy arrays](https://numpy.org/doc/stable/dev/internals.html). Authoritative on memory layout.
-- [Advanced NumPy | SciPy Lecture Notes](https://scipy-lectures.org/advanced/advanced_numpy/). Strides, ufuncs, and the C API in depth.
+- [Advanced NumPy | Scientific Python Lectures](https://lectures.scientific-python.org/advanced/advanced_numpy/index.html). Strides, ufuncs, and the C API in depth.
 - [numexpr documentation](https://numexpr.readthedocs.io/). Fusing chained expressions to skip the intermediates.
 
 ---
