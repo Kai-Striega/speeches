@@ -87,20 +87,6 @@ flat = images.reshape(1000, -1)        # ← 6.3 GB copy
 </v-clicks>
 
 ---
-
-# The promise
-
-By the end of this talk, you'll look at this expression:
-
-```python
-result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
-```
-
-...and know exactly what NumPy just did to memory.
-
-Three ideas, not tricks.
-
----
 layout: section
 ---
 
@@ -609,36 +595,6 @@ Remember why copies hurt: bandwidth and cache eviction.
 - You don't ask for any of this. It's what staying inside the contract buys you.
 
 ---
-
-# The trap
-
-Broadcasting prevents *one* specific intermediate.
-It does **not** prevent intermediates from chained operations.
-
-```python
-result = (a - a.mean(axis=1, keepdims=True)) ** 2
-```
-
-What our model says gets allocated:
-
-<v-clicks>
-
-- `a.mean(...)`        → small, shape `(N, 1)`
-- `a - a.mean(...)`    → **full size** intermediate
-- `(...) ** 2`         → **full size** intermediate
-
-</v-clicks>
-
-<v-clicks>
-
-- The mean broadcast: no tile, contract held.
-- But chaining still costs you intermediates. Two of them.
-- Hold onto that number. We're going to count them for real later.
-
-</v-clicks>
-
-
----
 layout: section
 ---
 
@@ -650,14 +606,17 @@ layout: section
 
 # The cost we accepted
 
+Broadcasting prevents *one* specific intermediate. It does **not** prevent the ones chaining creates.
+
 ```python
 result = ((a - a.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
 ```
 
 <v-clicks>
 
-- Broadcasting saved the tile.
-- But each chained step still writes a **full-size intermediate** to memory.
+- `a.mean(...)` → small, shape `(N, 1)`. The broadcast saved the tile, contract held.
+- `a - a.mean(...)` → **full size** intermediate.
+- `(...) ** 2` → another **full size** intermediate.
 - NumPy evaluates one operation at a time. It finishes `a - mean`, stores it, then starts `** 2`.
 - For a big `a`, that's two full arrays written out and read straight back. Pure bandwidth (idea 2).
 - Everything in this talk says that costs us two allocations. So let's count them.
@@ -802,6 +761,22 @@ np.sqrt(a - m)             # ufunc call, not an operator
 </v-clicks>
 
 ---
+
+# If NumPy is your thing, come work with me!
+
+- Endgame is a technology-led consultancy providing expert mathematical and economic advice
+- **If it touches the energy sector, we run the numbers to understand it**
+
+<div class="flex justify-center items-start gap-20 mt-12">
+  <img :src="'/LogoWithBackground-02.png'" class="h-52 rounded-lg" alt="Endgame Analytics logo" />
+  <div class="flex flex-col items-center gap-3">
+    <img :src="'/pycon-au-2026-careers-qr.png'" class="h-52 rounded-lg" alt="QR code to the Endgame Analytics careers page" />
+    <span class="text-sm opacity-75">Scan for open roles</span>
+  </div>
+</div>
+
+---
+
 
 # References
 

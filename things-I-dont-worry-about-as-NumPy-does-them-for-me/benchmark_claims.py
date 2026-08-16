@@ -75,11 +75,11 @@ def within(measured, low, high):
 
 
 # --------------------------------------------------------------------------
-# Idea 1 -- "The familiar comparison"  (slides.md L113-129)
+# Idea 1 -- "The familiar comparison"  (slides.md L99-115)
 # --------------------------------------------------------------------------
 
 def familiar_comparison():
-    header("Idea 1 / The familiar comparison  (L113-129)")
+    header("Idea 1 / The familiar comparison  (L99-115)")
     data = np.arange(1_000_000, dtype=np.float64)
 
     t_py = bench("[x ** 2 for x in data]", globals_={"data": data})
@@ -107,11 +107,11 @@ def familiar_comparison():
 
 
 # --------------------------------------------------------------------------
-# Idea 1 -- "Watch what's actually happening"  (slides.md L134-156)
+# Idea 1 -- "Watch what's actually happening"  (slides.md L120-142)
 # --------------------------------------------------------------------------
 
 def trace_line_counts():
-    header("Idea 1 / Watch what's actually happening -- settrace  (L134-156)")
+    header("Idea 1 / Watch what's actually happening -- settrace  (L120-142)")
     data = np.arange(1_000_000, dtype=np.float64)
 
     python_lines_visited = 0
@@ -162,11 +162,11 @@ def trace_line_counts():
 
 
 # --------------------------------------------------------------------------
-# Idea 1 -- "When the relocation breaks"  (slides.md L199-217)
+# Idea 1 -- "When the relocation breaks"  (slides.md L185-203)
 # --------------------------------------------------------------------------
 
 def relocation_breaks():
-    header("Idea 1 / When the relocation breaks -- object dtype  (L199-217)")
+    header("Idea 1 / When the relocation breaks -- object dtype  (L185-203)")
     ints = np.arange(1_000_000, dtype=np.int64)
     objs = np.arange(1_000_000, dtype=object)
 
@@ -181,11 +181,11 @@ def relocation_breaks():
 
 
 # --------------------------------------------------------------------------
-# Idea 2 -- "A surprising timing"  (slides.md L265-282)
+# Idea 2 -- "A surprising timing"  (slides.md L251-268)
 # --------------------------------------------------------------------------
 
 def surprising_timing():
-    header("Idea 2 / A surprising timing -- transpose vs copy  (L265-282)")
+    header("Idea 2 / A surprising timing -- transpose vs copy  (L251-268)")
     # np.random.random, NOT np.zeros. np.zeros comes from calloc, so its pages
     # are lazily mapped to the shared zero page until touched -- timing a copy
     # out of it measures page-fault behaviour as much as data movement.
@@ -224,11 +224,11 @@ def surprising_timing():
 
 
 # --------------------------------------------------------------------------
-# Idea 2 -- "One buffer, two headers"  (slides.md L338-358)
+# Idea 2 -- "One buffer, two headers"  (slides.md L324-344)
 # --------------------------------------------------------------------------
 
 def view_aliasing():
-    header("Idea 2 / One buffer, two headers -- views alias  (L338-358)")
+    header("Idea 2 / One buffer, two headers -- views alias  (L324-344)")
     a = np.zeros((2, 3))
     b = a.T
     b[0, 0] = 42
@@ -238,11 +238,11 @@ def view_aliasing():
 
 
 # --------------------------------------------------------------------------
-# Idea 2 -- "Stop guessing: ask"  (slides.md L406-425)
+# Idea 2 -- "Stop guessing: ask"  (slides.md L392-411)
 # --------------------------------------------------------------------------
 
 def shares_memory_diagnostic():
-    header("Idea 2 / Stop guessing -- np.shares_memory vs .base  (L406-425)")
+    header("Idea 2 / Stop guessing -- np.shares_memory vs .base  (L392-411)")
     # same structure as the villain, at a size we can actually allocate
     images = np.zeros((10, 8, 8, 3))
     flat = images.transpose(0, 3, 1, 2).reshape(10, -1)
@@ -263,11 +263,11 @@ def shares_memory_diagnostic():
 
 
 # --------------------------------------------------------------------------
-# Idea 2 -- "Verifying the picture"  (slides.md L360-386)
+# Idea 2 -- "Verifying the picture"  (slides.md L346-372)
 # --------------------------------------------------------------------------
 
 def verify_strides():
-    header("Idea 2 / Verifying the picture -- shape, strides, flags  (L360-386)")
+    header("Idea 2 / Verifying the picture -- shape, strides, flags  (L346-372)")
     a = np.zeros((2, 3))
     b = a.T
 
@@ -281,11 +281,11 @@ def verify_strides():
 
 
 # --------------------------------------------------------------------------
-# Idea 2 -- "Non-contiguous doesn't mean scrambled"  (slides.md L360-386)
+# Idea 2 -- "Non-contiguous doesn't mean scrambled"  (slides.md L346-372)
 # --------------------------------------------------------------------------
 
 def contiguity_flags():
-    header("Idea 2 / Non-contiguous doesn't mean scrambled -- flags  (L360-386)")
+    header("Idea 2 / Non-contiguous doesn't mean scrambled -- flags  (L346-372)")
     a = np.zeros((2, 3))
     b = a.T
 
@@ -298,11 +298,11 @@ def contiguity_flags():
 
 
 # --------------------------------------------------------------------------
-# Idea 2 -- "Why copies hurt" / bandwidth  (slides.md L427-445)
+# Idea 2 -- "Why copies hurt" / bandwidth  (slides.md L413-431)
 # --------------------------------------------------------------------------
 
 def bandwidth():
-    header("Idea 2 / Why copies hurt -- memory bandwidth  (L427-445)")
+    header("Idea 2 / Why copies hurt -- memory bandwidth  (L413-431)")
     # Measure copy bandwidth on a large contiguous buffer. Pre-allocate and
     # pre-touch the destination so we time pure memory traffic, not the
     # allocation + first-touch page faults of a fresh np.copy().
@@ -327,11 +327,11 @@ def bandwidth():
 
 
 # --------------------------------------------------------------------------
-# The villain -- transpose then reshape copies  (slides.md L73-89, L447-505)
+# The villain -- transpose then reshape copies  (slides.md L73-89, L433-491)
 # --------------------------------------------------------------------------
 
 def villain():
-    header("The villain -- transpose then reshape forces a copy  (L447-505)")
+    header("The villain -- transpose then reshape forces a copy  (L433-491)")
 
     # full-size byte arithmetic (we do NOT allocate 6.3 GB; we compute it)
     shape = (1000, 512, 512, 3)
@@ -373,11 +373,11 @@ def villain():
 
 
 # --------------------------------------------------------------------------
-# Idea 3 -- "The contract in code"  (slides.md L540-555)
+# Idea 3 -- "The contract in code"  (slides.md L526-541)
 # --------------------------------------------------------------------------
 
 def broadcasting_sizes():
-    header("Idea 3 / The contract in code -- sizes  (L540-555)")
+    header("Idea 3 / The contract in code -- sizes  (L526-541)")
     a = np.zeros((1000, 1000))
     b = np.arange(1000)
     result = a + b
@@ -393,11 +393,11 @@ def broadcasting_sizes():
 
 
 # --------------------------------------------------------------------------
-# Idea 3 -- "How? Stride zero"  (slides.md L557-576)
+# Idea 3 -- "How? Stride zero"  (slides.md L543-562)
 # --------------------------------------------------------------------------
 
 def stride_zero():
-    header("Idea 3 / How? Stride zero -- broadcasting is a 0 stride  (L557-576)")
+    header("Idea 3 / How? Stride zero -- broadcasting is a 0 stride  (L543-562)")
     b = np.arange(1000)
     line("b.strides", "(8,)", b.strides, b.strides == (8,))
 
@@ -416,11 +416,11 @@ def stride_zero():
 
 
 # --------------------------------------------------------------------------
-# Idea 3 -- "The rules"  (slides.md L578-600)
+# Idea 3 -- "The rules"  (slides.md L564-586)
 # --------------------------------------------------------------------------
 
 def broadcasting_rules():
-    header("Idea 3 / The rules -- shape resolution  (L578-600)")
+    header("Idea 3 / The rules -- shape resolution  (L564-586)")
 
     r1 = np.broadcast_shapes((1000, 1000), (1000,))
     line("(1000,1000) + (1000,) -> ", "(1000, 1000)", r1, r1 == (1000, 1000))
@@ -437,11 +437,11 @@ def broadcasting_rules():
 
 
 # --------------------------------------------------------------------------
-# The trap / closing -- intermediates exist  (slides.md L613-642, L686-702)
+# "The cost we accepted" -- intermediates exist  (slides.md L607-626, L628-649)
 # --------------------------------------------------------------------------
 
 def intermediates():
-    header("The trap -- chained ops allocate full-size intermediates  (L613-642)")
+    header("Chained ops allocate full-size intermediates  (L607-626)")
     # NOTE: every step below is bound to a name, so each temporary has a
     # refcount > 1 and elision cannot apply. That is deliberate: this section
     # verifies the naive accounting the slide predicts. The elision sections
@@ -466,7 +466,7 @@ def intermediates():
 
 
 # --------------------------------------------------------------------------
-# One more thing -- NumPy elides the chained temporary  (slides.md L680-810)
+# One more thing -- NumPy elides the chained temporary  (slides.md L628-734)
 # --------------------------------------------------------------------------
 
 def peak_bytes(fn):
@@ -480,7 +480,7 @@ def peak_bytes(fn):
 
 
 def elision():
-    header("One more thing / temporary elision  (L686-747)")
+    header("One more thing / temporary elision  (L628-671)")
     print(f"          (elision expected on this interpreter: "
           f"{ELISION_EXPECTED}; python {sys.version.split()[0]})")
 
@@ -528,7 +528,7 @@ def elision():
 
 
 def elision_rules():
-    header("One more thing / when elision does not fire  (L770-791)")
+    header("One more thing / when elision does not fire  (L694-715)")
     n = 4_000_000
     a = np.ones(n)
     b = np.ones(n)
@@ -566,7 +566,7 @@ def elision_rules():
 
 
 def elision_threshold():
-    header("One more thing / the 256 KiB threshold  (L749-768)")
+    header("One more thing / the 256 KiB threshold  (L673-692)")
     # NPY_MIN_ELIDE_BYTES = 256 * 1024 in temp_elide.c
     for nbytes, should_elide in [(128 * 1024, False), (256 * 1024, True)]:
         x = np.ones(nbytes // 8)
