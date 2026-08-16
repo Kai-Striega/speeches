@@ -762,6 +762,22 @@ np.sqrt(a - m)             # ufunc call, not an operator
 
 ---
 
+# If NumPy is your thing, come work with me!
+
+- Endgame is a technology-led consultancy providing expert mathematical and economic advice
+- **If it touches the energy sector, we run the numbers to understand it**
+
+<div class="flex justify-center items-start gap-20 mt-12">
+  <img :src="'/LogoWithBackground-02.png'" class="h-52 rounded-lg" alt="Endgame Analytics logo" />
+  <div class="flex flex-col items-center gap-3">
+    <img :src="'/pycon-au-2026-careers-qr.png'" class="h-52 rounded-lg" alt="QR code to the Endgame Analytics careers page" />
+    <span class="text-sm opacity-75">Scan for open roles</span>
+  </div>
+</div>
+
+---
+
+
 # References
 
 - [Introduction to Numerical Computing with NumPy | SciPy 2019 | Alex Chabot-Leclerc](https://www.youtube.com/watch?v=ZB7BZMhfPgk). The gentle on-ramp if today went too fast.
