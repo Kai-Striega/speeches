@@ -57,6 +57,19 @@ Kai Striega
 
 ---
 
+# AI Disclosure
+
+- This talk is based on my own thoughts, experiences and expertise
+- I created **most** of the content
+- AI assisted by:
+    - designing the ASCII diagrams
+    - reviewing the code examples
+    - writing the benchmarking code, which was reviewed by myself
+    - generating git commit messages that are actually useful
+- The model used was Claude Opus 4.8
+
+---
+
 # Why we're here
 
 <v-clicks>
