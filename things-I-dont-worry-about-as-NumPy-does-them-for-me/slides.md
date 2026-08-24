@@ -805,6 +805,52 @@ you the tile, but it costs you the elision.
 
 ---
 
+# The fix, and what it doesn't fix
+
+The refcount test from earlier now lives behind a shim:
+
+```c {|4-5|6-8|9-11}
+static int
+check_unique_temporary(PyObject *lhs)
+{
+#if PY_VERSION_HEX == 0x030E00A7 && !defined(PYPY_VERSION)
+#error "NumPy is broken on CPython 3.14.0a7, please update to a newer version"
+#elif PY_VERSION_HEX >= 0x030E00B1 && !defined(PYPY_VERSION)
+    // see https://github.com/python/cpython/issues/133164
+    return PyUnstable_Object_IsUniqueReferencedTemporary(lhs);
+#else
+    // equivalent to Py_REFCNT(lhs) == 1 except on 3.13t
+    return PyUnstable_Object_IsUniquelyReferenced(lhs);
+#endif
+}
+```
+
+<!--
+This is the same check we looked at earlier, the one guarding `can_elide_temp`.
+It used to be a bare `Py_REFCNT(olhs) != 1`. Now it is thirteen lines of
+version detection, and every branch is a scar.
+
+[click] For exactly one CPython alpha, 3.14.0a7, there was no way to get the
+right answer at all, so NumPy refuses to compile against it. That is what it
+looks like when an assumption this deep breaks.
+
+[click] From 3.14 beta 1 onwards, stop guessing from the refcount and ask the
+interpreter directly. That is the API CPython added for this.
+
+[click] And everywhere else, the old meaning, refcount equals one. Even that
+needs a backport, because on free-threaded 3.13 the plain refcount answer was
+never trustworthy either.
+
+Now the honest part. This makes NumPy's answer **correct**, not fast. The
+question "is this a temporary" is being asked properly again, and on 3.14 the
+answer is usually no, so on 3.14.0 I still measure two full-size intermediates
+and 22 milliseconds. The optimisation has not come back. What got fixed is
+that NumPy is no longer eliding based on a signal that stopped meaning
+anything, which is the bug that mattered.
+-->
+
+---
+
 # The takeaway
 
 - An ndarray is a header pointing at a buffer.
