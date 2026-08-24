@@ -692,23 +692,50 @@ tracemalloc.get_traced_memory()      # a is (2000, 2000), 32 MB
 
 # Only a temporary can have a refcount of 1
 
-```python {1-3|5}
+```python
 x = a + b + b
 #   ^^^^^ this temporary is never given a name,
 #         so nothing else holds a reference to it
-
-# numpy/_core/src/multiarray/temp_elide.c
 ```
 
-<v-clicks>
+Simplified from `numpy/_core/src/multiarray/temp_elide.c`:
 
-- `LOAD_FAST` bumps the refcount of every *named* variable it pushes.
-- So a refcount of 1 is a reliable signal: this array is nobody else's.
-- If nobody else can see it, overwriting it changes no observable behaviour.
-- NumPy rewrites `tmp ** 2` into `tmp **= 2` and reuses the buffer.
-- CPython plays the same trick to grow strings in place.
+```c {|5|6-9|10|11}
+static int
+can_elide_temp(PyObject *olhs, PyObject *orhs, int *cannot)
+{
+    PyArrayObject *alhs = (PyArrayObject *)olhs;
+    if (!check_unique_temporary(olhs) ||        // refcount == 1
+            !PyArray_CheckExact(olhs) ||        // not a subclass
+            !PyArray_ISNUMBER(alhs) ||          // not object dtype
+            !PyArray_CHKFLAGS(alhs, NPY_ARRAY_OWNDATA) ||
+            !PyArray_ISWRITEABLE(alhs) ||
+            PyArray_NBYTES(alhs) < NPY_MIN_ELIDE_BYTES) {
+        return 0;
+    }
+```
 
-</v-clicks>
+<!--
+`LOAD_FAST` bumps the refcount of every *named* variable it pushes. So a
+refcount of 1 is a reliable signal: this array is nobody else's. And if
+nobody else can see it, overwriting it changes no observable behaviour.
+
+[click] That is this line. On 3.13 and earlier `check_unique_temporary` is
+just `Py_REFCNT(lhs) == 1` behind a portability shim. Remember it, it is
+the line that breaks in twenty slides' time.
+
+[click] The rest is NumPy refusing to be clever. An exact ndarray, not a
+subclass whose `__array_finalize__` might notice. A numeric dtype, not
+object. Owning its own data, and writeable.
+
+[click] And big enough to be worth it, which is the 256 KiB we come to next.
+
+[click] Fail any one of them and it bails out and allocates, exactly as
+before.
+
+So when all of it passes, NumPy rewrites `tmp ** 2` into `tmp **= 2` and
+reuses the buffer. CPython plays the same trick to grow strings in place.
+-->
 
 ---
 
