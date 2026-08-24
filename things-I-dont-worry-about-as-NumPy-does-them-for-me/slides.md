@@ -91,14 +91,6 @@ images = images.transpose(0, 3, 1, 2)
 flat = images.reshape(1000, -1)        # ← 6.3 GB copy
 ```
 
-<v-clicks>
-
-- Three innocent-looking lines.
-- One of them just allocated and moved 6.3 gigabytes.
-- **The cost isn't where you think it is.**
-
-</v-clicks>
-
 ---
 layout: section
 ---
@@ -120,13 +112,6 @@ data = np.arange(1_000_000, dtype=np.float64)
 # NumPy
 %timeit data ** 2                  # ~0.25 ms
 ```
-
-<v-clicks>
-
-- Yes, NumPy is faster.
-- *But that's not the lesson*.
-
-</v-clicks>
 
 ---
 
@@ -154,20 +139,6 @@ sys.settrace(None)
 
 ---
 
-# A million versus one
-
-<v-clicks>
-
-- Python's bytecode interpreter ran:
-  - a **million** times in the first version.
-  - **once** in the second.
-- NumPy isn't accelerating Python.
-- It's *relocating the work* somewhere Python never touches.
-
-</v-clicks>
-
----
-
 # Where did the work go?
 
 Simplified from `numpy/_core/src/umath/loops.c.src`:
@@ -185,14 +156,6 @@ DOUBLE_square(char **args, npy_intp const *dimensions, ...)
 }
 ```
 
-<v-clicks>
-
-- *This* is the loop that ran.
-- In C.
-- Over the whole array.
-
-</v-clicks>
-
 ---
 
 # When the relocation breaks
@@ -208,27 +171,13 @@ objs = np.arange(1_000_000, dtype=object)
 %timeit objs ** 2     # ~30 ms    
 ```
 
-<v-clicks>
-
-- Same shape, same operation, same syntax.
-- For `int64`, NumPy has a C kernel.
-- For `object`, it doesn't. There's no general C function for arbitrary Python objects.
-- The relocation contract requires a kernel.
-- **Object dtype opts you out of every performance property NumPy offers.**
-
-</v-clicks>
-
 ---
 
 # Bridge
 
-<v-clicks>
-
 - So the *operations* live in C.
 - But what about the *data*?
 - What does an array actually look like?
-
-</v-clicks>
 
 ---
 layout: section
@@ -270,14 +219,6 @@ big = np.random.random((10_000, 10_000))   # 800 MB
 %timeit big.T.copy()                       # ~810 ms
 ```
 
-<v-clicks>
-
-- Transposing 800MB in **40 nanoseconds**.
-- The same operation with `.copy()` costs about twenty million times more.
-- What is `.T` actually doing, then?
-
-</v-clicks>
-
 ---
 
 # The picture: buffer
@@ -285,13 +226,6 @@ big = np.random.random((10_000, 10_000))   # 800 MB
 ```
 buffer in memory:    [1] [2] [3] [4] [5] [6] (each box = 8 bytes, float64)
 ```
-
-<v-clicks>
-
-- Six contiguous elements.
-- That's all the data there is.
-
-</v-clicks>
 
 ---
 
@@ -304,14 +238,6 @@ buffer in memory:    [1] [2] [3] [4] [5] [6] (each box = 8 bytes, float64)
           a:  shape=(2, 3)   strides=(24, 8)
 ```
 
-<v-clicks>
-
-- The header points at the buffer.
-- Shape says how the bytes are laid out conceptually.
-- Strides say how many bytes to step per axis.
-
-</v-clicks>
-
 ---
 
 # The picture: transpose
@@ -323,14 +249,6 @@ buffer in memory:    [1] [2] [3] [4] [5] [6] (each box = 8 bytes, float64)
           a:    shape=(2, 3)   strides=(24, 8)
           a.T:  shape=(3, 2)   strides=(8, 24)
 ```
-
-<v-clicks>
-
-- Same buffer.
-- Transpose just **swapped two numbers** in the strides field.
-- The data didn't move. That's the whole operation.
-
-</v-clicks>
 
 ---
 
@@ -345,14 +263,6 @@ buffer in memory:    [1] [2] [3] [4] [5] [6] (each box = 8 bytes, float64)
 >>> b.base is a
 True
 ```
-
-<v-clicks>
-
-- We never touched `a`. We wrote through `b`.
-- There was only ever one buffer, so there was only ever one place to write.
-- The header/buffer split isn't trivia. It decides who sees your writes.
-
-</v-clicks>
 
 ---
 
@@ -374,52 +284,17 @@ True
 (True, False)
 ```
 
-<v-clicks>
-
-- Strides are in **bytes**. `(24, 8)` is "skip a row" then "skip a column" for `float64`.
-- `b` is not C-contiguous. But it *is* `F_CONTIGUOUS`: still perfectly regular, just column-major.
-- Non-contiguous doesn't mean scrambled. That regularity is exactly what lets BLAS take `b` without a copy.
-
-</v-clicks>
-
----
-
-# The reshape contract
-
-<v-clicks>
-
-- `reshape` returns a **view** when the requested shape is compatible with the existing memory layout.
-- It **copies** when it isn't.
-- "Compatible" means: NumPy can produce the new shape by choosing new strides
-  over the same buffer, without rearranging any bytes.
-
-  - A contiguous array (C or F) can almost always be reshaped without copying.
-  - A non-contiguous array sometimes can. It depends on which axes you touch.
-
-> Heuristic: if you've done a transpose, fancy indexing, or an axis-rearranging operation recently, **assume reshape might copy**.
-
-</v-clicks>
-
 ---
 
 # Stop guessing: ask
 
-```python{|1-3|5-7}
+```python{1|2-3|4-5}
 >>> flat = images.transpose(0, 3, 1, 2).reshape(1000, -1)
 >>> np.shares_memory(flat, images)
 False                      # it copied
-
->>> flat.base is None
-False                      # ...but base says nothing useful here
+>>> np.may_share_memory(flat, images)
+False                      # it copied, errs towards True
 ```
-
-<v-clicks>
-
-- `np.shares_memory` is the question you actually mean: *did these end up on the same bytes?*
-- `.base` is tempting and misleading. A copy still has a `base`, it just points at the copy.
-- On pathological strides `shares_memory` can be slow. `np.may_share_memory` is the cheap conservative answer.
-
-</v-clicks>
 
 ---
 
@@ -435,8 +310,7 @@ It's slow because the bytes have to *move*.
 - That is the **floor**, and only a streaming copy hits it. `big.T.copy()` had to fault in fresh pages *and* read against the grain of the cache, so it paid 810 ms for traffic worth 40 ms.
 - While that happens, the cache fills with data we won't reuse.
 - The *next* operation pays again to pull its inputs back in.
-
-**The currency is bandwidth, not bytes.**
+- **The currency is bandwidth, not bytes.**
 
 </v-clicks>
 
@@ -450,10 +324,6 @@ images = load_images()                   # (1000, 512, 512, 3)
 images = images.transpose(0, 3, 1, 2)
 flat = images.reshape(1000, -1)          # 6.3 GB copy
 ```
-
-- Remember this from the start?
-- I said something here cost 6.3 gigabytes.
-- Let's read it!
 
 ---
 
@@ -471,35 +341,6 @@ flat = images.reshape(1000, -1)         # needs contiguous layout
                                         # buffer doesn't match → copy
                                         # 6.3 GB allocated and moved
 ```
-
-<v-clicks>
-
-- Reshape needs to walk the new shape in a regular stride pattern. The transpose broke that.
-- The cost wasn't on the line that did the work.
-- It was set up three lines earlier.
-
-</v-clicks>
-
----
-
-# The villain returns
-
-```python {1|2|3}
-images = load_images()
-images = np.ascontiguousarray(                # explicit copy here
-    images.transpose(0, 3, 1, 2))
-flat = images.reshape(1000, -1)               # now free
-```
-
-<v-clicks>
-
-- The fix doesn't make the copy go away.
-- The 6.3 GB still gets moved.
-- `.copy()` would work too. `ascontiguousarray` names the thing we actually want.
-- What changed: the copy is now on the line that asks for it, instead of hiding inside `reshape`.
-- **The model doesn't avoid copies. It makes them visible.**
-
-</v-clicks>
 
 ---
 
@@ -716,14 +557,6 @@ np.sqrt(a - m)             # ufunc call, not an operator
 (a - m) * col              # col is (N, 1), shapes differ
                            # elision refuses to broadcast
 ```
-
-<v-clicks>
-
-- Give the temporary a name and you have taken it away.
-- The hooks live in the operators, not in `np.sqrt(...)`.
-- And `can_elide_temp` demands matching shapes. Broadcasting saves the tile, but it costs you the elision.
-
-</v-clicks>
 
 ---
 
